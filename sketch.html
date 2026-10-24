@@ -137,6 +137,7 @@
     <button id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
     <button id="bRedo" title="Redo (Ctrl+Y)">Redo</button>
     <button id="bFit" title="Zoom to fit">Fit</button>
+    <label title="Re-fit the view after each wall you confirm with Enter, so the whole drawing stays in view"><input id="autoFit" type="checkbox" checked> auto-fit</label>
     <button id="bRotate" title="Rotate the selection, or the whole sketch when nothing is selected, by any angle">Rotate…</button>
   </div>
   <div class="grp">Page:
@@ -297,6 +298,7 @@
     <tr><td><b>Ctrl+A</b> / <b>Ctrl+C</b> / <b>Ctrl+V</b></td><td>Select everything shown / copy / paste. With one level shown, paste puts the copy on that level in place: copy the main floor, show Upper, paste.</td></tr>
     <tr><td>Select tool</td><td>Click to select; <b>Shift+click</b> adds; drag on empty space draws a fence around what to select. Click a dimension to hide it (or show it again).</td></tr>
     <tr><td>Mouse wheel / right-drag</td><td>Zoom / pan. In Draw mode you can also click out corners; hold Shift to keep a wall square.</td></tr>
+    <tr><td><b>auto-fit</b> (toolbar)</td><td>On: after each wall you confirm with Enter, the view re-fits so the whole drawing stays in view. Untick it to stay zoomed in on a detail.</td></tr>
   </table>
   <h3>Doors, windows, symbols</h3>
   <p>Pick a kind, width and (optional) height under <i>Doors, windows, symbols</i>, then with the <b>Door/Window</b> tool click a
@@ -1131,7 +1133,8 @@ function fit() {
   const pts = allPoints(true);
   if (!pts.length) { view = { cx: 0, cy: 0, zoom: 8 }; return render(); }
   const b = bbox(pts), bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);
-  view.zoom = Math.min((W() - 80) / bw, (H() - 80) / bh);
+  // Capped so a lone start point or a single short wall doesn't fill the screen.
+  view.zoom = Math.min((W() - 80) / bw, (H() - 80) / bh, S.units === "m" ? 200 : 60);
   view.cx = (b.x0 + b.x1) / 2; view.cy = (b.y0 + b.y1) / 2;
   render();
 }
@@ -2068,7 +2071,8 @@ function submitCmd(line) {
   if (res.err) { status(res.err, "bad"); return render(); }
   cmd.value = "";
   status(res.msg || (draw ? `${draw.points.length - 1} wall(s) — keep typing, C to close.` : ""), res.msg ? "ok" : "");
-  renderPanel(); render();
+  renderPanel();
+  if ($("autoFit").checked) fit(); else render();
 }
 const ARROW_DIR = { ArrowRight: "R", ArrowLeft: "L", ArrowUp: "U", ArrowDown: "D" };
 cmd.addEventListener("keydown", e => {
@@ -2432,6 +2436,12 @@ $("tSymbol").onclick = () => setTool("symbol");
 $("tCalib").onclick = () => setTool("calib");
 $("tMoveU").onclick = () => setTool("moveU");
 $("bUndo").onclick = undo; $("bRedo").onclick = redo; $("bFit").onclick = fit;
+// Auto-fit is remembered per browser (a convenience, not part of the sketch).
+try { if (localStorage.getItem("jks-sketch-autofit") === "0") $("autoFit").checked = false; } catch (e) { /* storage off */ }
+$("autoFit").onchange = () => {
+  try { localStorage.setItem("jks-sketch-autofit", $("autoFit").checked ? "1" : "0"); } catch (e) { /* storage off */ }
+  if ($("autoFit").checked) fit();
+};
 $("showDims").onchange = render;
 $("dimFmt").onchange = () => { render(); renderPanel(); };
 $("bNew").onclick = () => {

@@ -65,6 +65,7 @@ Up is north on the page. Several commands can go on one line: `R40 D28 L40 C`.
 | Ctrl+A / Ctrl+C / Ctrl+V | select all shown / copy / paste |
 | Shift+click, drag on empty space | add to the selection / fence-select (Select tool) |
 | Wheel / right-drag | zoom / pan |
+| *auto-fit* (toolbar, on by default) | re-fit the view after each wall confirmed with Enter, so the whole drawing stays in view; untick to stay zoomed in |
 
 **Closure check.** If every typed wall is square and the closing wall comes out
 diagonal, the status bar says so. A dimension was mistyped, or misread on the
