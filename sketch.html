@@ -287,7 +287,7 @@
     <tr><td><code>mR10</code> <code>mU4</code> <code>m3@45</code></td><td>Move the start point without drawing — e.g. a garage that starts 10 ft along the house wall.</td></tr>
     <tr><td><code>C</code></td><td>Close back to the start. The status bar reports the closing wall so a sketch that doesn't close is caught.</td></tr>
     <tr><td><code>E</code></td><td>End as an open line (a fence, a lot line, a wall that is not a room).</td></tr>
-    <tr><td><code>25.5</code> then <b>→</b></td><td>Number-pad drawing: type a length and press an arrow key; the wall is drawn at once.</td></tr>
+    <tr><td><code>25.5</code> <b>→</b> <b>Enter</b></td><td>Number-pad drawing: type a length, press an arrow to give it a direction (it becomes <code>R25.5</code>, shown dashed; another arrow turns it), then Enter to draw it.</td></tr>
     <tr><td><b>Enter</b> on an empty line</td><td>Close the area (3+ corners).</td></tr>
     <tr><td><b>Backspace</b> on an empty line</td><td>Remove the last wall.</td></tr>
     <tr><td><b>Esc</b></td><td>Cancel the area being drawn / clear the selection.</td></tr>
@@ -2081,13 +2081,19 @@ cmd.addEventListener("keydown", e => {
     }
     submitCmd(line);
   } else if (ARROW_DIR[e.key] && !e.ctrlKey && !e.altKey) {
-    // Number pad drawing (Apex style): type a length, press an arrow, and the
-    // wall is drawn that way at once: 25.5 then → is R25.5.
+    // Number pad drawing (Apex style): type a length and press an arrow to give
+    // it a direction (25.5 then → becomes R25.5, previewed dashed), then Enter
+    // to draw it. Another arrow before Enter turns it: R25.5 then ↑ is U25.5.
     const toks = cmd.value.trim().split(/\s+/), last = toks[toks.length - 1] || "";
-    if (!cmd.value.trim() || !(parseLen(last) > 0)) return;
+    if (!cmd.value.trim()) return;
+    let m;
+    if (parseLen(last) > 0) toks[toks.length - 1] = ARROW_DIR[e.key] + last;
+    else if ((m = last.match(/^([UDLR])([^UDLR~@]+)$/i)) && parseLen(m[2]) > 0) toks[toks.length - 1] = ARROW_DIR[e.key] + m[2];
+    else return;
     e.preventDefault(); e.stopPropagation();
-    toks[toks.length - 1] = ARROW_DIR[e.key] + last;
-    submitCmd(toks.join(" "));
+    cmd.value = toks.join(" ");
+    cmd.dispatchEvent(new Event("input"));   // preview it
+    if (!$("status").classList.contains("bad")) status(`${cmd.value}: Enter to draw it, or another arrow to turn it.`);
   } else if (e.key === "Backspace" && !cmd.value && draw) {
     e.preventDefault(); undo();
   }

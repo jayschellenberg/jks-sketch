@@ -60,7 +60,7 @@ Up is north on the page. Several commands can go on one line: `R40 D28 L40 C`.
 | Backspace on empty line | remove the last wall |
 | Esc | cancel the area being drawn / clear selection |
 | Ctrl+Z / Ctrl+Y | undo / redo |
-| `25.5` then an arrow | number-pad drawing: the wall is drawn that way at once |
+| `25.5` → Enter | number-pad drawing: the arrow gives the length a direction (`R25.5`, previewed; another arrow turns it), Enter draws it |
 | Arrows (empty line) | nudge the selection one grid step; Shift ×10 |
 | Ctrl+A / Ctrl+C / Ctrl+V | select all shown / copy / paste |
 | Shift+click, drag on empty space | add to the selection / fence-select (Select tool) |
