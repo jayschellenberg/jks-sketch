@@ -99,15 +99,29 @@ and struck through so it can be clicked back.
 underlay) when nothing is selected, by any angle. Shift+click and fence-select
 pick several items; drag, arrows, Delete, Ctrl+C and Rotate act on them all.
 
-**Doors and windows.** Choose a kind (door, double door, window, overhead
-door, plain opening) and width under *Doors, windows, symbols*, then with the
-*Door/Window* tool click a wall: the opening is centred where you click,
-snapped to the grid. Select the area to edit each opening: kind, wall (numbered
-as in the vectors), centre distance from the wall's first corner, width, swing
-*out* instead of into the room, and ⇄ to hinge at the other jamb. Openings
-belong to their area: they move, rotate, mirror and copy with it, and never
-change an area. Curved walls take no openings. `areas.json` lists each area's
-openings (kind, wall, width).
+**Doors and windows.** Choose a kind (door, double door, window, truck dock
+door, grade-level overhead door, plain opening), width and optional height
+under *Doors, windows, symbols*, then with the *Door/Window* tool click a wall:
+the opening is centred where you click, snapped to the grid. Select the area to
+edit each opening: kind, wall (numbered as in the vectors), centre distance
+from the wall's first corner, width, height, swing *out* instead of into the
+room, and ⇄ to hinge at the other jamb. Openings belong to their area: they
+move, rotate, mirror and copy with it, and never change an area. Curved walls
+take no openings.
+
+**Dock and grade doors.** A truck dock door (default 9'×10') draws with dock
+bumpers; a grade-level overhead door defaults to 12'×14'. Both carry a size tag
+outside the wall (`DH 9'×10'`, `GL 12'×14'`) and are counted per building in
+the calculations footer, the printed table (`2 × 9'×10'`) and `areas.json`
+(`dock_doors` and `grade_level_doors`: count and sizes). Overhead doors from
+older sketches are grade-level doors.
+
+**Year built and ceiling height.** Select an area (a section) to note its year
+built and its ceiling height: one height, or several separated by commas
+(`16, 24'6`). Tick *details* under *Label* to show them on the plan. They also
+show in the area calculations, in a *Built / ceiling* column of the printed
+table (only when some section has them), and in `areas.json` (`year_built`,
+`ceiling_heights`). Ceiling heights convert with the drawing's units.
 
 **Symbols.** Click a symbol in the palette (stairs, toilet, sink, tub, shower,
 range, refrigerator, washer/dryer, water heater, furnace, electrical panel,

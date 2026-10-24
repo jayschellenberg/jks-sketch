@@ -158,6 +158,7 @@
     <label title="Area code from the library (GLA1, GAR…)"><input id="shCode" type="checkbox"> code</label>
     <label><input id="shName" type="checkbox" checked> name</label>
     <label><input id="shArea" type="checkbox" checked> size</label>
+    <label title="Year built and ceiling height, where entered"><input id="shInfo" type="checkbox"> details</label>
     <button id="bLib" title="Area library: codes, labels, counts toward building area, default factors, fills">Library…</button>
   </div>
   <div class="grp">Export:
@@ -193,7 +194,7 @@
 
   <h3>Doors, windows, symbols</h3>
   <div class="row"><label for="oKind">Opening</label><span style="display:flex;gap:4px"><select id="oKind" style="flex:1"></select>
-    <input id="oWidth" type="number" step="0.5" min="0.1" title="Width" style="width:64px"></span></div>
+    <input id="oWidth" type="number" step="0.5" min="0.1" title="Width" style="width:56px">×<input id="oHeight" type="number" step="0.5" min="0" title="Height (optional)" placeholder="ht" style="width:56px"></span></div>
   <div class="hint">Door/Window tool: click a wall to place it.</div>
   <div id="symGrid"></div>
 
@@ -208,6 +209,8 @@
     <div class="row"><label for="sInc">In bldg area</label><span><input id="sInc" type="checkbox"> counts toward building area</span></div>
     <div class="row"><label for="sFactor">Factor</label><span><input id="sFactor" type="number" step="0.05" min="0" style="width:70px"> <span class="hint">net = base × factor</span></span></div>
     <div class="row"><label for="sNeg">Negative</label><span><input id="sNeg" type="checkbox"> <span class="hint">deducts (stairwell, atrium)</span></span></div>
+    <div class="row"><label for="sYear">Year built</label><input id="sYear" type="text" inputmode="numeric" placeholder="e.g. 1985" style="width:90px"></div>
+    <div class="row"><label for="sCeil">Ceiling ht</label><input id="sCeil" type="text" placeholder="e.g. 18 or 16, 24'6" title="One height, or several separated by commas"></div>
     <div class="row"><label for="sDims">Show dims</label><span><input id="sDims" type="checkbox"> <span class="hint">off for a shared wall</span></span></div>
     <div class="row"><label>Size</label><span id="sSize"></span></div>
     <label for="sVec" class="hint">Vectors from the first corner — edit a dimension and Apply:</label>
@@ -282,11 +285,17 @@
     <tr><td>Mouse wheel / right-drag</td><td>Zoom / pan. In Draw mode you can also click out corners; hold Shift to keep a wall square.</td></tr>
   </table>
   <h3>Doors, windows, symbols</h3>
-  <p>Pick a kind and width under <i>Doors, windows, symbols</i>, then with the <b>Door/Window</b> tool click a wall: the opening
-  is centred where you click (snapped to the grid). Select the area to edit it: kind, wall, centre distance from the wall's first
-  corner, width, swing <b>out</b> instead of into the room, and <b>⇄</b> to hinge at the other jamb. Openings move, rotate and
+  <p>Pick a kind, width and (optional) height under <i>Doors, windows, symbols</i>, then with the <b>Door/Window</b> tool click a
+  wall: the opening is centred where you click (snapped to the grid). <b>Truck dock door</b> (default 9'×10') and
+  <b>Grade-level overhead door</b> (12'×14') get a size tag outside the wall (<code>DH 9'×10'</code>, <code>GL 12'×14'</code>) and are
+  counted per building. Select the area to edit an opening: kind, wall, centre distance from the wall's first corner, width,
+  height, swing <b>out</b> instead of into the room, and <b>⇄</b> to hinge at the other jamb. Openings move, rotate and
   mirror with their area and never change an area. Click a symbol in the palette, then click the plan to place it (keep clicking
   for more). Symbols are drawn at real size; select one to rotate it (⟲ ⟳ or any angle) or resize it.</p>
+  <h3>Year built and ceiling height</h3>
+  <p>Select an area (a section) to note its <b>Year built</b> and <b>Ceiling ht</b>: one height, or several separated by commas
+  (<code>16, 24'6</code>). Tick <b>details</b> under Label to show them on the plan; they also appear in the calculations, the printed
+  table and <code>areas.json</code>.</p>
   <h3>Levels, library, labels</h3>
   <p><b>Show</b> picks one level: the others are hidden, new areas go on that level, and SVG/PNG/Print export just that level.
   <b>Library…</b> edits the area categories (code, label, counts toward building area, default factor, fill). <b>Label</b> chooses
@@ -1235,22 +1244,32 @@ function areaSvg(a, T, o, isSel) {
   if (!top[0]) { top = bottom; bottom = null; }
   if (top) out.push(`<text x="${lx.toFixed(1)}" y="${(ly - (bottom ? 7 : 0)).toFixed(1)}" ${F} ${top[1]}>${esc(top[0])}</text>`);
   if (bottom) out.push(`<text x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}" ${F} ${bottom[1]}>${esc(bottom[0])}</text>`);
+  // Details line: year built and ceiling height.
+  const info = sh.info ? infoText(a) : "";
+  if (info) out.push(`<text x="${lx.toFixed(1)}" y="${(ly + (bottom ? 21 : 14)).toFixed(1)}" ${F} font-size="10" fill="#6b7280">${esc(info)}</text>`);
   return out.join("");
 }
 // ---------------------------------------------------------------- doors, windows and openings
 // An opening sits on one straight wall of an area: a.openings = [{ kind, wall,
-// at, width, out, hingeEnd }], "at" being the distance from the wall's first
-// corner to the opening's middle. It moves, turns and mirrors with its area and
-// never changes an area. A door swings into the room unless "out"; its hinge is
-// at the jamb nearer the wall's first corner unless "hingeEnd".
+// at, width, height, out, hingeEnd }], "at" being the distance from the wall's
+// first corner to the opening's middle; height is optional. It moves, turns and
+// mirrors with its area and never changes an area. A door swings into the room
+// unless "out"; its hinge is at the jamb nearer the wall's first corner unless
+// "hingeEnd". Grade-level and dock-height overhead doors carry a size tag
+// outside the wall (GL 12'×14', DH 9'×10') and are counted in the summary.
+// ("overhead" is the grade-level door's key, kept from earlier sketches.)
 const OPENINGS = {
-  door:     { label: "Door",          ft: 3 },
-  double:   { label: "Double door",   ft: 6 },
-  window:   { label: "Window",        ft: 4 },
-  overhead: { label: "Overhead door", ft: 12 },
-  opening:  { label: "Opening",       ft: 4 },
+  door:     { label: "Door",                     ft: 3,  ht: 0 },
+  double:   { label: "Double door",              ft: 6,  ht: 0 },
+  window:   { label: "Window",                   ft: 4,  ht: 0 },
+  overhead: { label: "Grade-level overhead door", ft: 12, ht: 14, tag: "GL", count: "grade_level_doors" },
+  dock:     { label: "Truck dock door",          ft: 9,  ht: 10, tag: "DH", count: "dock_doors" },
+  opening:  { label: "Opening",                  ft: 4,  ht: 0 },
 };
-const openingDefault = kind => S.units === "m" ? Math.round(OPENINGS[kind].ft * FT_TO_M * 10) / 10 : OPENINGS[kind].ft;
+const toUnits = ft => S.units === "m" ? Math.round(ft * FT_TO_M * 10) / 10 : ft;
+const openingDefault = kind => toUnits(OPENINGS[kind].ft);
+const openingHeightDefault = kind => OPENINGS[kind].ht ? toUnits(OPENINGS[kind].ht) : "";
+const openingSize = o => fmtLen(o.width) + (o.height > 0 ? "×" + fmtLen(o.height) : "");
 function openingGeom(a, o) {
   const p = a.points, n = p.length;
   if (o.wall >= (a.closed ? n : n - 1) || riseAt(a, o.wall)) return null;
@@ -1259,8 +1278,9 @@ function openingGeom(a, o) {
   const at = Math.max(w / 2, Math.min(L - w / 2, o.at)), u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L];
   const inside = isCalc(a) && signedAreaOf(a) < 0 ? -1 : 1, s = inside * (o.out ? -1 : 1);
   const nrm = [-u[1] * s, u[0] * s];   // the side a door swings to
+  const outward = [u[1] * inside, -u[0] * inside];   // away from the room, whatever the swing
   const along = d => [A[0] + u[0] * d, A[1] + u[1] * d];
-  return { u, nrm, w, p0: along(at - w / 2), p1: along(at + w / 2) };
+  return { u, nrm, outward, w, p0: along(at - w / 2), p1: along(at + w / 2) };
 }
 // Quarter-circle swing from the open leaf's tip to the far jamb, as points.
 function swingArc(H, tip, F) {
@@ -1294,13 +1314,61 @@ function openingSvg(a, o, T, isSel) {
     out[0] = `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="#fff" stroke-width="8"/>`;
     out.push(`<path d="${off(-3.5)}${off(3.5)}" stroke="${ink}" stroke-width="1" fill="none"/><path d="${off(0)}" stroke="${ink}" stroke-width="0.6" fill="none"/>`);
   }
-  else if (o.kind === "overhead") {
+  else if (o.kind === "overhead" || o.kind === "dock") {
     // Dashed line just inside the room (the door's swing side), the usual overhead-door mark.
-    const [ix, iy] = T(g.p0[0] + g.nrm[0], g.p0[1] + g.nrm[1]), k = (Math.sign((ix - x0) * nx + (iy - y0) * ny) || 1) * 5;
+    const side = v => { const [ix, iy] = T(g.p0[0] + v[0], g.p0[1] + v[1]); return Math.sign((ix - x0) * nx + (iy - y0) * ny) || 1; };
+    const k = side(g.nrm) * 5, ko = side(g.outward);
     out.push(`<path d="${off(k)}" stroke="${ink}" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
+    // A dock door gets its bumpers: two small blocks outside, one at each jamb.
+    if (o.kind === "dock") for (const [x, y] of [[x0 + tx * 2, y0 + ty * 2], [x1 - tx * 6, y1 - ty * 6]])
+      out.push(`<path d="M${(x + nx * ko * 2).toFixed(2)} ${(y + ny * ko * 2).toFixed(2)}l${(tx * 4).toFixed(2)} ${(ty * 4).toFixed(2)}` +
+        `l${(nx * ko * 5).toFixed(2)} ${(ny * ko * 5).toFixed(2)}l${(-tx * 4).toFixed(2)} ${(-ty * 4).toFixed(2)}Z" fill="${ink}" stroke="none"/>`);
+    // Size tag outside the wall, reading along it: GL 12'×14' / DH 9'×10'.
+    const mx = (x0 + x1) / 2 + nx * ko * 16, my = (y0 + y1) / 2 + ny * ko * 16;
+    let ang = Math.atan2(ty, tx) * 180 / Math.PI;
+    if (ang > 90) ang -= 180; else if (ang <= -90) ang += 180;
+    out.push(`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" font-size="10" font-weight="bold" text-anchor="middle" dominant-baseline="middle" ` +
+      `font-family="Arial, Helvetica, sans-serif" fill="${isSel ? "#2563eb" : "#374151"}" transform="rotate(${ang.toFixed(2)} ${mx.toFixed(1)} ${my.toFixed(1)})">` +
+      `${OPENINGS[o.kind].tag} ${esc(openingSize(o))}</text>`);
   }
   return out.join("");
 }
+// Dock-height and grade-level doors per building, with their sizes:
+// { building: { dock_doors: [o...], grade_level_doors: [o...] } }.
+function doorsByBuilding() {
+  const out = {};
+  for (const a of S.areas) for (const o of a.openings || []) {
+    const c = OPENINGS[o.kind] && OPENINGS[o.kind].count;
+    if (!c) continue;
+    const b = a.building || "(no building)";
+    ((out[b] = out[b] || { dock_doors: [], grade_level_doors: [] })[c]).push(o);
+  }
+  return out;
+}
+// "2 × 9'×10', 1 × 10'×12'": doors grouped by size.
+function doorSizesText(list) {
+  const m = new Map();
+  for (const o of list) m.set(openingSize(o), (m.get(openingSize(o)) || 0) + 1);
+  return [...m].map(([s, n]) => `${n} × ${s}`).join(", ");
+}
+
+// ---------------------------------------------------------------- year built and ceiling height
+// Each area (section) can note its year built (a.yearBuilt, a number) and one
+// or more ceiling heights (a.ceilings, in drawing units): "18", "16, 24'6".
+function parseCeilings(text) {
+  const parts = String(text).split(/[,;]/).map(s => s.trim()).filter(Boolean), out = [];
+  for (const p of parts) {
+    const v = parseLen(p.replace(/\s+/g, ""));
+    if (!(v > 0)) return { err: `Ceiling height "${p}" isn't a length (e.g. 18, 18'6, 16, 24).` };
+    out.push(round4(v));
+  }
+  return { list: out };
+}
+const fmtCeilings = a => (a.ceilings || []).map(fmtLen).join(" / ");
+function infoText(a) {
+  return [a.yearBuilt ? `Built ${a.yearBuilt}` : "", (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean).join(" · ");
+}
+
 // The nearest straight wall to a point (world), within tol: { a, wall, at, L }.
 function nearestWall(w, tol) {
   let best = null;
@@ -1321,15 +1389,17 @@ function nearestWall(w, tol) {
 function placeOpening(w) {
   const hit = nearestWall(w, 10 / view.zoom);
   if (!hit) return status("Click on a straight wall to place the opening.", "bad");
-  const kind = $("oKind").value, width = parseFloat($("oWidth").value) || openingDefault(kind);
+  const kind = $("oKind").value, width = parseFloat($("oWidth").value) || openingDefault(kind), height = parseFloat($("oHeight").value) || 0;
   if (width > hit.L + EPS) return status(`That wall is ${fmtLen(hit.L)}: too short for a ${fmtLen(width)} ${OPENINGS[kind].label.toLowerCase()}.`, "bad");
   const g = parseFloat($("snap").value) || 0;
   let at = g > 0 ? Math.round(hit.at / g) * g : hit.at;
   at = round4(Math.max(width / 2, Math.min(hit.L - width / 2, at)));
   pushHistory();
-  (hit.a.openings = hit.a.openings || []).push({ kind, wall: hit.wall, at, width, out: false, hingeEnd: false });
+  const o = { kind, wall: hit.wall, at, width, out: false, hingeEnd: false };
+  if (height > 0) o.height = height;
+  (hit.a.openings = hit.a.openings || []).push(o);
   setSel({ kind: "area", id: hit.a.id }); commit();
-  status(`${OPENINGS[kind].label} ${fmtLen(width)} on ${hit.a.name}, centre ${fmtLen(at)} from the corner. Edit it under Selected.`, "ok");
+  status(`${OPENINGS[kind].label} ${openingSize(o)} on ${hit.a.name}, centre ${fmtLen(at)} from the corner. Edit it under Selected.`, "ok");
 }
 
 // ---------------------------------------------------------------- symbols
@@ -1478,6 +1548,8 @@ function renderPanel() {
     $("sCat").value = it.category; $("sInc").checked = it.included; $("sDims").checked = it.dims;
     if (document.activeElement !== $("sFactor")) $("sFactor").value = factorOf(it).toFixed(2);
     $("sNeg").checked = !!it.negative;
+    if (document.activeElement !== $("sYear")) $("sYear").value = it.yearBuilt || "";
+    if (document.activeElement !== $("sCeil")) $("sCeil").value = (it.ceilings || []).map(v => fmtLen(v).replace(/'$/, "")).join(", ");
     const adj = factorOf(it) !== 1 || it.negative ? ` (base ${fmtArea(areaOf(it))})` : "";
     $("sSize").textContent = isCalc(it)
       ? `${fmtArea(netAreaOf(it))}${adj} · perimeter ${fmtLen(perimeterOf(it))}`
@@ -1536,7 +1608,8 @@ function renderOpenings(a) {
     `<select data-f="wall">${walls.join("").replace(`value="${o.wall}"`, `value="${o.wall}" selected`)}</select>` +
     `at <input type="number" data-f="at" step="0.5" min="0" value="${fmtNum(o.at, 3)}" title="Centre, from the wall's first corner">` +
     `w <input type="number" data-f="width" step="0.5" min="0.1" value="${fmtNum(o.width, 3)}" title="Width">` +
-    (o.kind === "door" || o.kind === "double" || o.kind === "overhead" ? `<label title="Swing to the other side of the wall"><input type="checkbox" data-f="out"${o.out ? " checked" : ""}> out</label>` : "") +
+    `h <input type="number" data-f="height" step="0.5" min="0" value="${o.height > 0 ? fmtNum(o.height, 3) : ""}" placeholder="—" title="Height (optional)">` +
+    (["door", "double", "overhead", "dock"].includes(o.kind) ? `<label title="${o.kind === "door" || o.kind === "double" ? "Swing to the other side of the wall" : "Mark on the other side of the wall"}"><input type="checkbox" data-f="out"${o.out ? " checked" : ""}> out</label>` : "") +
     (o.kind === "door" ? `<button data-act="hinge" title="Hinge at the other jamb">⇄</button>` : "") +
     `<button data-act="del" title="Remove">✕</button></div>`).join("");
 }
@@ -1581,6 +1654,8 @@ function renderCalcs() {
         const kv = [["Base area", n2(areaOf(a))], ["Factor", (a.negative ? "−" : "") + factorOf(a).toFixed(2)],
           ["Net area", n2(net)], ["Perimeter", n2(perimeterOf(a))]];
         if (a.level && a.category !== "site") kv.unshift(["Level", esc(a.level)]);
+        if (a.yearBuilt) kv.push(["Year built", a.yearBuilt]);
+        if ((a.ceilings || []).length) kv.push(["Ceiling", esc(fmtCeilings(a))]);
         if (a.category !== "site" && !a.included) kv.push(["Building area", "not counted"]);
         leaves += node("a:" + a.id, `${esc(a.name)} : <span class="${net < 0 ? "neg" : ""}">${n2(net)}</span>`,
           kv.map(([l, v]) => `<div class="kv">${l} : ${v}</div>`).join(""), isSel ? "sel" : "", a.id);
@@ -1597,6 +1672,10 @@ function renderCalcs() {
   for (const b of t.buildings) h += `<div><span>${esc(b.building)} — building area</span><span>${n2(b.building_area)} ${u}</span></div>`;
   for (const g of groupsOf().values()) h += `<div><span>${esc(g.name)} (combined)</span><span>${n2(g.total)} ${u}</span></div>`;
   if (t.site) h += `<div><span>Site area</span><span>${n2(t.site)} ${u}</span></div>`;
+  for (const [b, d] of Object.entries(doorsByBuilding())) {
+    if (d.dock_doors.length) h += `<div><span>${esc(b)} — dock doors</span><span>${esc(doorSizesText(d.dock_doors))}</span></div>`;
+    if (d.grade_level_doors.length) h += `<div><span>${esc(b)} — grade doors</span><span>${esc(doorSizesText(d.grade_level_doors))}</span></div>`;
+  }
   $("calcs").innerHTML = h + "</div>";
 }
 function syncInfoFields() {
@@ -1604,7 +1683,7 @@ function syncInfoFields() {
   $("units").value = S.units;
   $("dimFmt").disabled = S.units === "m";
   const sh = S.show || { name: true, area: true };
-  $("shCode").checked = !!sh.code; $("shName").checked = sh.name !== false; $("shArea").checked = sh.area !== false;
+  $("shCode").checked = !!sh.code; $("shName").checked = sh.name !== false; $("shArea").checked = sh.area !== false; $("shInfo").checked = !!sh.info;
   $("scaleLbl").textContent = S.units === "m" ? "1:" : '1" ='; $("scaleUnit").textContent = S.units === "m" ? "" : "'";
 }
 
@@ -1641,7 +1720,8 @@ function exportSvg(opts) {
     const calc = a => factorOf(a) !== 1 || a.negative
       ? ` (${fmtArea(areaOf(a))} × ${a.negative ? "−" : ""}${fmtNum(factorOf(a), 2)})` : "";
     for (const a of list) rows.push([a.name, a.category === "site" ? "Site" : [a.building, a.level].filter(Boolean).join(" — "),
-      CAT[a.category].label + calc(a), fmtArea(netAreaOf(a)), a.included && a.category !== "site" ? "yes" : "", false]);
+      CAT[a.category].label + calc(a), fmtArea(netAreaOf(a)), a.included && a.category !== "site" ? "yes" : "", false,
+      [a.yearBuilt || "", fmtCeilings(a)].filter(Boolean).join(" · ")]);
     for (const g of groupsOf().values()) {
       const shown = g.members.filter(visible);
       if (!shown.length) continue;
@@ -1653,6 +1733,11 @@ function exportSvg(opts) {
       rows.push([`${bt.building} — building area${viewLevel ? " (all levels)" : ""}`, "", "", fmtArea(bt.building_area), "", true]);
     }
     if (t.site) rows.push(["Site area", "", "", fmtArea(t.site), "", true]);
+    // Door counts belong to the building, whatever level is shown.
+    for (const [b, d] of Object.entries(doorsByBuilding())) {
+      if (d.dock_doors.length) rows.push([`${b} — dock-height doors: ${doorSizesText(d.dock_doors)}`, "", "", "", "", true]);
+      if (d.grade_level_doors.length) rows.push([`${b} — grade-level doors: ${doorSizesText(d.grade_level_doors)}`, "", "", "", "", true]);
+    }
   }
   const rowH = 22, tableH = rows.length ? rowH * (rows.length + 1) + 40 : 0;
   const Ht = titleH + drawH + tableH + 30;
@@ -1670,15 +1755,18 @@ function exportSvg(opts) {
     `<g transform="translate(0 ${titleH})">${body}</g>` + northArrow(Wd - pad - 20, titleH + 40);
   if (rows.length) {
     let y = titleH + drawH + 20;
-    const span = Wd - 2 * pad, cols = [0, .29, .51, .71, .84].map(f => pad + f * span), sizeX = cols[3] + .09 * span;
+    // A "Built / ceiling" column appears only when some section has a year or ceiling height.
+    const details = rows.some(r => r[6]), span = Wd - 2 * pad;
+    const cols = (details ? [0, .22, .40, .58, .77, .86] : [0, .29, .51, null, .71, .84]).map(f => f === null ? null : pad + f * span);
+    const sizeX = cols[4] + .09 * span;
+    const cell = (text, i, bold) => cols[i] === null ? "" :
+      `<text x="${i === 4 ? sizeX : cols[i]}" y="${y}" font-size="13" ${F} ${bold ? 'font-weight="bold"' : ""} ${i === 4 ? 'text-anchor="end"' : ""}>${esc(text)}</text>`;
     s += `<line x1="${pad}" y1="${y}" x2="${Wd - pad}" y2="${y}" stroke="#9ca3af"/>`;
     y += rowH;
-    ["Area", "Building / level", "Category", "Size", "In bldg area"].forEach((h, i) =>
-      s += `<text x="${i === 3 ? sizeX : cols[i]}" y="${y}" font-size="13" font-weight="bold" ${F} ${i === 3 ? 'text-anchor="end"' : ""}>${h}</text>`);
+    ["Area", "Building / level", "Category", "Built / ceiling", "Size", "In bldg area"].forEach((h, i) => s += cell(h, i, true));
     for (const r of rows) {
       y += rowH;
-      r.slice(0, 5).forEach((c, i) =>
-        s += `<text x="${i === 3 ? sizeX : cols[i]}" y="${y}" font-size="13" ${F} ${r[5] ? 'font-weight="bold"' : ""} ${i === 3 ? 'text-anchor="end"' : ""}>${esc(c)}</text>`);
+      [r[0], r[1], r[2], r[6] || "", r[3], r[4]].forEach((c, i) => s += cell(c, i, r[5]));
     }
   }
   return s + "</svg>";
@@ -1702,6 +1790,8 @@ function areasJson() {
   const toM2 = v => S.units === "m" ? v : v * FT_TO_M * FT_TO_M;
   const r1 = v => Math.round(v * 10) / 10;
   const both = v => ({ sq_ft: r1(toSf(v)), sq_m: r1(toM2(v)) });
+  // A length in the drawing's units: { ft } or { m }.
+  const len = v => S.units === "m" ? { m: Math.round(v * 100) / 100 } : { ft: Math.round(v * 100) / 100 };
   const t = totals(), groups = groupsOf();
   return {
     format: "jks-sketch-areas", version: 1,
@@ -1716,14 +1806,22 @@ function areasJson() {
       combined_as: groupOf(a, groups) ? a.group.trim() : null,
       base_area: both(areaOf(a)), factor: factorOf(a), negative: !!a.negative,
       area: both(netAreaOf(a)),
-      openings: (a.openings || []).map(o => ({ kind: o.kind, wall: o.wall + 1, width: r1(o.width) })),
-      perimeter: S.units === "m" ? { m: r1(perimeterOf(a)) } : { ft: r1(perimeterOf(a)) },
+      year_built: a.yearBuilt || null,
+      ceiling_heights: (a.ceilings || []).map(len),
+      openings: (a.openings || []).map(o => ({ kind: o.kind, kind_label: OPENINGS[o.kind].label, wall: o.wall + 1,
+        width: len(o.width), height: o.height > 0 ? len(o.height) : null })),
+      perimeter: len(perimeterOf(a)),
     })),
-    buildings: t.buildings.map(b => ({
-      building: b.building, building_area: both(b.building_area),
-      by_level: Object.fromEntries(Object.entries(b.by_level).map(([k, v]) => [k, both(v)])),
-      by_category: Object.fromEntries(Object.entries(b.by_category).map(([k, v]) => [k, both(v)])),
-    })),
+    buildings: t.buildings.map(b => {
+      const d = doorsByBuilding()[b.building] || { dock_doors: [], grade_level_doors: [] };
+      const doors = list => ({ count: list.length, sizes: list.map(o => ({ width: len(o.width), height: o.height > 0 ? len(o.height) : null })) });
+      return {
+        building: b.building, building_area: both(b.building_area),
+        by_level: Object.fromEntries(Object.entries(b.by_level).map(([k, v]) => [k, both(v)])),
+        by_category: Object.fromEntries(Object.entries(b.by_category).map(([k, v]) => [k, both(v)])),
+        dock_doors: doors(d.dock_doors), grade_level_doors: doors(d.grade_level_doors),
+      };
+    }),
     combined: [...groups.values()].map(g => ({ name: g.name, members: g.members.map(m => m.name), area: both(g.total) })),
     site_area: t.site ? both(t.site) : null,
   };
@@ -1760,7 +1858,10 @@ function setTool(t) {
     ["tCalib", "calib"], ["tMoveU", "moveU"]])
     $(id).classList.toggle("on", k === t);
   for (const b of document.querySelectorAll("#symGrid button")) b.classList.toggle("on", t === "symbol" && b.dataset.sym === curSym);
-  if (t === "opening") status(`Click a wall to place a ${OPENINGS[$("oKind").value].label.toLowerCase()} ${fmtLen(parseFloat($("oWidth").value) || 0)} wide.`);
+  if (t === "opening") {
+    const h = parseFloat($("oHeight").value);
+    status(`Click a wall to place a ${OPENINGS[$("oKind").value].label.toLowerCase()}, ${fmtLen(parseFloat($("oWidth").value) || 0)} wide${h > 0 ? ` × ${fmtLen(h)} high` : ""}.`);
+  }
   if (t === "symbol") status(`Click to place: ${SYM[curSym].label}. Rotate and resize it under Selected.`);
   svg.classList.toggle("select", t === "select" || t === "moveU");
   if (t === "calib") status(underlay ? "Calibrate: click one end of a wall of known length on the image." : "Load an underlay image first.", underlay ? "" : "bad");
@@ -2045,6 +2146,19 @@ onSelEdit("sInc", (a, el) => { a.included = el.checked; delete el.dataset.dirty;
 onSelEdit("sDims", (a, el) => { a.dims = el.checked; delete el.dataset.dirty; }, "change");
 onSelEdit("sFactor", (a, el) => { const v = parseFloat(el.value); if (v >= 0) a.factor = v; });
 onSelEdit("sNeg", (a, el) => { a.negative = el.checked; delete el.dataset.dirty; }, "change");
+onSelEdit("sYear", (a, el) => {
+  delete el.dataset.dirty;
+  const t = el.value.trim();
+  if (!t) delete a.yearBuilt;
+  else if (/^\d{4}$/.test(t) && +t >= 1700 && +t <= 2200) a.yearBuilt = +t;
+  else status("Year built: a four-digit year, e.g. 1985.", "bad");
+}, "change");
+onSelEdit("sCeil", (a, el) => {
+  delete el.dataset.dirty;
+  const r = parseCeilings(el.value);
+  if (r.err) return status(r.err, "bad");
+  if (r.list.length) a.ceilings = r.list; else delete a.ceilings;
+}, "change");
 onSelEdit("lText", (l, el) => l.text = el.value);
 onSelEdit("lSize", (l, el) => l.size = Math.max(6, Math.min(48, +el.value || 12)));
 $("sApply").addEventListener("click", () => {
@@ -2105,9 +2219,14 @@ $("sOpenings").addEventListener("change", e => {
   if (!a || !row || !f) return;
   const o = a.openings[+row.dataset.k];
   pushHistory();
-  if (f === "kind") { o.kind = e.target.value; }
+  if (f === "kind") {
+    o.kind = e.target.value;
+    // A dock or grade door with no height yet takes the usual one.
+    if (!(o.height > 0) && OPENINGS[o.kind].ht) o.height = openingHeightDefault(o.kind);
+  }
   else if (f === "wall") { o.wall = +e.target.value; }
   else if (f === "out") { o.out = e.target.checked; }
+  else if (f === "height") { const v = parseFloat(e.target.value); if (v > 0) o.height = round4(v); else delete o.height; }
   else { const v = parseFloat(e.target.value); if (v > 0 || (f === "at" && v >= 0)) o[f] = round4(v); }
   const g = openingGeom(a, o);   // keep the stored centre on the wall
   if (g) { const L = dist(a.points[o.wall], a.points[(o.wall + 1) % a.points.length]); o.at = round4(Math.max(Math.min(o.width, L) / 2, Math.min(L - Math.min(o.width, L) / 2, o.at))); }
@@ -2121,7 +2240,10 @@ $("sOpenings").addEventListener("click", e => {
   if (act === "del") a.openings.splice(k, 1); else a.openings[k].hingeEnd = !a.openings[k].hingeEnd;
   commit();
 });
-$("oKind").onchange = () => { $("oWidth").value = openingDefault($("oKind").value); setTool("opening"); };
+$("oKind").onchange = () => {
+  $("oWidth").value = openingDefault($("oKind").value); $("oHeight").value = openingHeightDefault($("oKind").value); setTool("opening");
+};
+$("oHeight").onchange = () => setTool("opening");
 $("oWidth").onchange = () => setTool("opening");
 $("summary").addEventListener("click", e => {
   const tr = e.target.closest("tr[data-id]"); if (!tr) return;
@@ -2168,7 +2290,8 @@ $("units").onchange = () => {
   const sc = p => [round4(p[0] * k), round4(p[1] * k)];
   for (const a of S.areas) {
     a.points = a.points.map(sc); a.rise = (a.rise || []).map(v => round4((v || 0) * k)); a.labelOffset = sc(a.labelOffset);
-    for (const o of a.openings || []) { o.at = round4(o.at * k); o.width = round4(o.width * k); }
+    for (const o of a.openings || []) { o.at = round4(o.at * k); o.width = round4(o.width * k); if (o.height) o.height = round4(o.height * k); }
+    if (a.ceilings) a.ceilings = a.ceilings.map(v => round4(v * k));
   }
   for (const l of S.labels.concat(S.symbols)) [l.x, l.y] = sc([l.x, l.y]);
   if (underlay) { underlay.x *= k; underlay.y *= k; underlay.scale *= k; }
@@ -2261,7 +2384,7 @@ $("viewLevel").onchange = () => {
   renderPanel(); fit();
   status(viewLevel ? `Showing ${viewLevel} only. Exports are of this level.` : "Showing all levels.");
 };
-for (const [id, k] of [["shCode", "code"], ["shName", "name"], ["shArea", "area"]])
+for (const [id, k] of [["shCode", "code"], ["shName", "name"], ["shArea", "area"], ["shInfo", "info"]])
   $(id).onchange = () => { pushHistory(); S.show = Object.assign({}, S.show, { [k]: $(id).checked }); commit(); };
 $("dimDec").onchange = () => { render(); renderPanel(); };
 // Rotate the selection, or everything shown, about its middle. Positive =
@@ -2387,7 +2510,7 @@ try {
 setCats(S.cats || defaultCats());
 fillLabelList();
 $("oKind").innerHTML = Object.entries(OPENINGS).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join("");
-$("oWidth").value = openingDefault("door");
+$("oWidth").value = openingDefault("door"); $("oHeight").value = openingHeightDefault("door");
 $("yType").innerHTML = SYMBOLS.map(s => `<option value="${s.key}">${s.label}</option>`).join("");
 // Symbol palette: each button previews its symbol fitted to the button.
 $("symGrid").innerHTML = SYMBOLS.map(s => {
