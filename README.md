@@ -12,7 +12,9 @@ after the first delivery.
 ## Workflow
 
 1. **Sketch box** (right panel): title (defaults to Schedule B's "Layout of
-   Subject Improvements"), property, file number, preparer, date.
+   Subject Improvements"), site name, address, file number, preparer, date.
+   Each exported page is headed with the site name, or the address when there
+   is no site name.
 2. **Optional underlay.** *Image…* loads a photo or scan of the field sketch.
    *Calibrate*: click both ends of a wall whose length you know, type that length,
    and the image is scaled to match. *Move* drags it into place; the ° box rotates it.
@@ -28,7 +30,7 @@ after the first delivery.
    "counts toward building area" box, or its **vectors** (the walls as text). Change
    a number and press *Apply vectors*. Click a dimension to hide it (shared
    walls); click it again to bring it back.
-6. **Output**: *Save* (editable), *SVG*/*PNG*/*Print* (the plan), *areas.json* (the
+6. **Output**: *Save* (editable), *SVG*/*PNG*/*JPG*/*Print* (the plan), *areas.json* (the
    numbers). In Edge/Chrome a save dialog opens, so pick the job's `dropzone/`
    folder directly.
 
@@ -172,10 +174,38 @@ count. The appraiser decides, per area.
 The browser also autosaves the last sketch locally. That is a convenience, not a
 record: *Save* is the record.
 
-**Print scale.** Leave the scale box blank and the plan fits the page (the title
-block says "Not to scale"). Enter a scale (`1" = 10'`, or `1:100` in metres) and
-SVG and Print come out at that real size; *Paper* and orientation set the print
-page, and the status bar warns when the plan won't fit.
+**Pages.** *Page* in the toolbar: *+* adds a page (site plan, each building,
+each floor), *Rename*, *✕* deletes one (Undo brings it back). Each page is its
+own drawing; totals, the area calculations and `areas.json` cover every page,
+and on a page's table the totals say "(all pages)". Each sheet is headed with
+the title and page name, the site name or address, and "Page 2 of 3". Copy on
+one page and paste on another to start from the same outline, in place.
+
+**Cold and semi-cold storage.** Set *Storage* (under *Next area* before
+drawing, or under *Selected*) to *Semi-cold storage* or *Cold storage*. Those
+sections are hatched on the plan (single hatch semi-cold, cross-hatch cold),
+always labelled with their class, and totalled apart from the main building
+area, which then reads "building area (heated)". `areas.json` gives each area's
+`storage` (`heated`, `semi_cold`, `cold`) and per building
+`semi_cold_storage_area`, `cold_storage_area` and `total_including_storage`;
+`building_area` is the heated GBA.
+
+**Pages out: fit, text size, PDF, JPG.** Every export is a real page: the
+chosen *paper* and orientation less a 0.4" margin, or *Report figure*
+(6.5 × 9", no margin) to drop into a letter-size report at full size.
+
+- *Scale* blank: the plan, title block and table are fitted to the page in
+  both directions, so a sheet is always one page. A scale (`1" = 10'`, or
+  `1:100` in metres) draws at that size and warns when it won't fit.
+- *min … pt* (10 by default) is the smallest text on the finished page;
+  dimensions, labels, door tags, the table and the title all scale up from it.
+  A dimension too long for its wall at that size is shortened (a curve drops
+  its rise) or left off, and the status bar says how many. Letters inside a
+  symbol (REF, W, D) that would print smaller are left off.
+- *PNG* and *JPG* are the page at the chosen *dpi* (300 by default). Placed at
+  their true page size, their text is at least the minimum.
+- *Print* (and Save as PDF) makes one sheet per page. SVG, PNG and JPG are of
+  the page being shown.
 
 ## Limits, on purpose
 

@@ -112,8 +112,10 @@
     body { display: block; background: #fff; }
     header, #stage, aside, footer, #help, #lib { display: none !important; }
     #printArea { display: block; }
-    /* Fit to the page unless a scale is set; a scaled plan prints at its own size in inches. */
-    #printArea svg:not([data-scaled]) { width: 100%; height: auto; }
+    /* Each sheet is already the page's printable size, in inches. */
+    #printArea .sheet { break-after: page; break-inside: avoid; }
+    #printArea .sheet:last-child { break-after: auto; }
+    #printArea svg { display: block; }
   }
 </style>
 </head>
@@ -136,6 +138,12 @@
     <button id="bRedo" title="Redo (Ctrl+Y)">Redo</button>
     <button id="bFit" title="Zoom to fit">Fit</button>
     <button id="bRotate" title="Rotate the selection, or the whole sketch when nothing is selected, by any angle">Rotate…</button>
+  </div>
+  <div class="grp">Page:
+    <select id="pageSel" title="The page being shown and drawn on. Print makes one sheet per page"></select>
+    <button id="bPageAdd" title="Add a page">+</button>
+    <button id="bPageRen" title="Rename this page">Rename</button>
+    <button id="bPageDel" title="Delete this page and what's on it">✕</button>
   </div>
   <div class="grp">Show:
     <select id="viewLevel" title="Show one level only: the others are hidden on screen and left out of the export"><option value="">All levels</option></select>
@@ -163,12 +171,15 @@
   </div>
   <div class="grp">Export:
     <button id="bSvg">SVG</button>
-    <button id="bPng">PNG</button>
+    <button id="bPng" title="This page as a PNG at the DPI chosen">PNG</button>
+    <button id="bJpg" title="This page as a JPG at the DPI chosen">JPG</button>
+    <select id="exDpi" title="Image resolution for PNG and JPG"><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300" selected>300 dpi</option></select>
     <button id="bAreas" title="Areas for the job record">areas.json</button>
     <button id="bPrint">Print</button>
     <label title="Print the area table under the drawing"><input id="exTable" type="checkbox" checked> table</label>
     <label title="Print scale. Blank = fit the page"><span id="scaleLbl">1" =</span> <input id="exScale" type="number" min="0" step="any" placeholder="fit" style="width:52px"><span id="scaleUnit">'</span></label>
-    <select id="exPaper" title="Paper for Print"><option value="letter">Letter</option><option value="legal">Legal</option><option value="11in 17in">Tabloid</option><option value="A4">A4</option><option value="A3">A3</option></select>
+    <select id="exPaper" title="Page size for Print, PNG and JPG"><option value="letter">Letter</option><option value="legal">Legal</option><option value="11in 17in">Tabloid</option><option value="A4">A4</option><option value="A3">A3</option><option value="fig" title="6.5 × 9 in, no margin: drops into a letter-size report at full size">Report figure</option></select>
+    <label title="Smallest text on the finished page, in points">min <input id="exMinPt" type="number" min="4" max="36" step="0.5" value="10" style="width:46px"> pt</label>
     <select id="exOrient" title="Orientation for Print"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
   </div>
   <div class="grp"><button id="bHelp">Help (F1)</button></div>
@@ -179,7 +190,8 @@
 <aside>
   <h3>Sketch</h3>
   <div class="row"><label for="iTitle">Title</label><input id="iTitle" type="text"></div>
-  <div class="row"><label for="iAddress">Property</label><input id="iAddress" type="text"></div>
+  <div class="row"><label for="iSite">Site name</label><input id="iSite" type="text" placeholder="e.g. Smith Cold Storage"></div>
+  <div class="row"><label for="iAddress">Address</label><input id="iAddress" type="text"></div>
   <div class="row"><label for="iFile">File no.</label><input id="iFile" type="text"></div>
   <div class="row"><label for="iPreparer">Prepared by</label><input id="iPreparer" type="text"></div>
   <div class="row"><label for="iDate">Date</label><input id="iDate" type="text"></div>
@@ -189,6 +201,7 @@
   <div class="row"><label for="nLevel">Level</label><input id="nLevel" type="text" value="Main"></div>
   <div class="row"><label for="nCat">Category</label><select id="nCat"></select></div>
   <div class="row"><label for="nGroup">Combine as</label><input id="nGroup" type="text" list="groupList" placeholder="blank = separate"></div>
+  <div class="row"><label for="nStorage">Storage</label><select id="nStorage" title="Semi-cold and cold storage are totalled apart from the main (heated) GBA"></select></div>
   <div class="row"><label for="snap">Grid snap</label><input id="snap" type="number" step="0.1" min="0" value="1"></div>
   <div class="row"><label for="nLabel">Label text</label><input id="nLabel" type="text" list="labelList" placeholder="for the Label tool, e.g. Office"></div>
 
@@ -211,6 +224,7 @@
     <div class="row"><label for="sNeg">Negative</label><span><input id="sNeg" type="checkbox"> <span class="hint">deducts (stairwell, atrium)</span></span></div>
     <div class="row"><label for="sYear">Year built</label><input id="sYear" type="text" inputmode="numeric" placeholder="e.g. 1985" style="width:90px"></div>
     <div class="row"><label for="sCeil">Ceiling ht</label><input id="sCeil" type="text" placeholder="e.g. 18 or 16, 24'6" title="One height, or several separated by commas"></div>
+    <div class="row"><label for="sStorage">Storage</label><select id="sStorage" title="Semi-cold and cold storage are totalled apart from the main (heated) GBA"></select></div>
     <div class="row"><label for="sDims">Show dims</label><span><input id="sDims" type="checkbox"> <span class="hint">off for a shared wall</span></span></div>
     <div class="row"><label>Size</label><span id="sSize"></span></div>
     <label for="sVec" class="hint">Vectors from the first corner — edit a dimension and Apply:</label>
@@ -292,6 +306,15 @@
   height, swing <b>out</b> instead of into the room, and <b>⇄</b> to hinge at the other jamb. Openings move, rotate and
   mirror with their area and never change an area. Click a symbol in the palette, then click the plan to place it (keep clicking
   for more). Symbols are drawn at real size; select one to rotate it (⟲ ⟳ or any angle) or resize it.</p>
+  <h3>Pages</h3>
+  <p><b>Page</b> in the toolbar: <b>+</b> adds a page (site plan, each building, each floor), <b>Rename</b>, <b>✕</b> deletes one.
+  Each page is its own drawing; totals and <code>areas.json</code> cover every page. Each sheet is headed with the title and page
+  name, the <b>Site name</b> (or the address when there is none) and "Page 2 of 3". Copy on one page and paste on another to
+  start from the same outline, in place.</p>
+  <h3>Cold and semi-cold storage</h3>
+  <p>Set <b>Storage</b> (under Next area before drawing, or under Selected) to <b>Semi-cold storage</b> or <b>Cold storage</b>.
+  Those sections are hatched on the plan and totalled on their own, apart from the main (heated) building area, everywhere totals
+  appear.</p>
   <h3>Year built and ceiling height</h3>
   <p>Select an area (a section) to note its <b>Year built</b> and <b>Ceiling ht</b>: one height, or several separated by commas
   (<code>16, 24'6</code>). Tick <b>details</b> under Label to show them on the plan; they also appear in the calculations, the printed
@@ -310,9 +333,15 @@
   <h3>Tracing a hand sketch</h3>
   <p><b>Image…</b> loads a photo of the field sketch under the drawing. <b>Calibrate</b>: click both ends of a wall whose length you know, then type that length — the image is scaled to match. <b>Move</b> drags it into place; the ° box rotates it. The underlay is never exported.</p>
   <h3>Outputs</h3>
-  <p><b>Save</b> writes an editable <code>.sketch.json</code>. <b>SVG</b>/<b>PNG</b>/<b>Print</b> give the clean plan for Schedule B.
-  Leave the scale box blank to fit the page, or enter one (<code>1" = 10'</code>, or <code>1:100</code> in metres) to print to scale;
-  Paper and orientation set the print page, and the status bar warns when the plan won't fit. <b>areas.json</b> records every area with building, level, category and size in both sq ft and m². File all of them into the job's <code>dropzone/</code>.</p>
+  <p><b>Save</b> writes an editable <code>.sketch.json</code>. <b>SVG</b>/<b>PNG</b>/<b>JPG</b>/<b>Print</b> give the clean plan for Schedule B.
+  Every export is a real page: the <b>paper</b> and orientation (less a 0.4" margin), or <b>Report figure</b> (6.5 × 9", no margin, to
+  drop into a letter-size report at full size). Leave the scale box blank and the plan, title and table are fitted to that page in
+  both directions; or enter a scale (<code>1" = 10'</code>, or <code>1:100</code> in metres). <b>min … pt</b> is the smallest text on the
+  finished page (10 pt by default); everything else scales up from it. Place a PNG or JPG at its true page size and its text is
+  that size too; <b>dpi</b> sets the image resolution. A dimension too long for its wall at that size is shortened, or left off with a
+  warning. SVG, PNG and JPG are of the page shown; <b>Print</b> (and Save as PDF) makes one sheet per page.
+  <b>areas.json</b> records every area with building, level, category and size in both sq ft and m². File all of them into the
+  job's <code>dropzone/</code>.</p>
   <p><button id="bHelpClose">Close</button></p>
 </div>
 
@@ -400,8 +429,11 @@ const AUTOSAVE_KEY = "jks-sketch-autosave-v1";
 function emptySketch() {
   return {
     format: "jks-sketch", version: 1, units: "ft",
-    info: { title: "Layout of Subject Improvements", address: "", file: "", preparer: "",
+    info: { title: "Layout of Subject Improvements", site: "", address: "", file: "", preparer: "",
             date: new Date().toISOString().slice(0, 10) },
+    // Pages: separate drawing sheets (site plan, each building, each floor…).
+    // Every area, label and symbol belongs to one; totals cover all of them.
+    pages: [{ id: "p1", name: "Page 1" }],
     areas: [], labels: [], symbols: [], nextId: 1,
     // What an area's label shows on the plan (Apex's auto-post options).
     show: { code: false, name: true, area: true },
@@ -415,6 +447,7 @@ let pen = [0, 0];           // where a typed area starts when nothing was clicke
 let sel = null;             // { kind: "area"|"label", id } — the one the side panel edits
 let picks = [];             // everything selected (Shift+click, fence); includes sel
 let viewLevel = "";         // "" = all levels; otherwise only that level is shown, edited and exported
+let curPage = "p1";         // the page being shown and drawn on
 let clip = null;            // copied areas, labels and symbols
 let curSym = "stairs";      // the symbol the Symbol tool places
 let tool = "draw";
@@ -735,7 +768,7 @@ function newArea(start) {
   return {
     id: S.nextId++, name: "", building: $("nBuilding").value.trim(), level: $("nLevel").value.trim(),
     category: cat, included: CAT[cat].inc, dims: true, closed: false, group: $("nGroup").value.trim(),
-    factor: CAT[cat].factor ?? 1, negative: false, hideDims: [],
+    factor: CAT[cat].factor ?? 1, negative: false, hideDims: [], page: curPage, storage: $("nStorage").value,
     points: [start.slice()], rise: [], labelOffset: [0, 0],
   };
 }
@@ -992,6 +1025,7 @@ function redo() {
 }
 function afterLoad() {
   setCats(S.cats || defaultCats());
+  ensurePages();
   picks = picks.filter(p => listOf(p.kind).some(x => x.id === p.id));
   if (sel && !findSel()) sel = picks[0] || null;
   syncInfoFields(); commit();
@@ -1021,7 +1055,18 @@ function listOf(kind) { return kind === "area" ? S.areas : kind === "symbol" ? S
 // Levels: with a level chosen in "Show", other levels' areas and labels are
 // hidden from the canvas, from snapping and tracing, and from the export.
 // Site areas and anything with no level always show.
-const visible = x => !viewLevel || !x.level || x.level === viewLevel || x.category === "site";
+const pageOf = x => x.page || S.pages[0].id;
+const visible = x => pageOf(x) === curPage && (!viewLevel || !x.level || x.level === viewLevel || x.category === "site");
+// A sketch always has at least one page, and the current page is one of them.
+function ensurePages() {
+  if (!Array.isArray(S.pages) || !S.pages.length) S.pages = [{ id: "p1", name: "Page 1" }];
+  if (!S.pages.some(p => p.id === curPage)) curPage = S.pages[0].id;
+}
+function renderPages() {
+  $("pageSel").innerHTML = S.pages.map((p, i) => `<option value="${p.id}">${i + 1}: ${esc(p.name)}</option>`).join("");
+  $("pageSel").value = curPage;
+  $("bPageDel").disabled = S.pages.length < 2;
+}
 const visAreas = () => S.areas.filter(visible);
 const visLabels = () => S.labels.filter(visible);
 const visSymbols = () => S.symbols.filter(visible);
@@ -1125,23 +1170,30 @@ function scene(v, Wd, Ht, o) {
     out.push(`<image href="${underlay.src}" x="${sx}" y="${sy}" width="${underlay.w * k}" height="${underlay.h * k}" ` +
       `opacity="${underlay.opacity}" transform="rotate(${underlay.rot} ${sx} ${sy})" preserveAspectRatio="none"/>`);
   }
+  // Hatches for semi-cold (single) and cold (cross) storage.
+  out.push(`<defs><pattern id="hatch-semi" patternUnits="userSpaceOnUse" width="8" height="8"><path d="M0 8L8 0" stroke="#64748b" stroke-width="0.6"/></pattern>` +
+    `<pattern id="hatch-cold" patternUnits="userSpaceOnUse" width="7" height="7"><path d="M0 7L7 0M0 0L7 7" stroke="#475569" stroke-width="0.6"/></pattern></defs>`);
   // Site first, then buildings, so a lot line never hides a building.
   const order = visAreas().sort((a, b) => (b.category === "site") - (a.category === "site"));
   o.groups = groupsOf();
+  // o.k scales every piece of text (and its offsets): 1 on screen; on a page export
+  // it is set so the smallest text prints at the chosen minimum size.
+  o.k = o.k || 1;
   for (const a of order) out.push(areaSvg(a, T, o, !o.noSel && isPicked("area", a.id)));
   // Openings after every area, so a neighbour's wall drawn later can't close the gap.
-  for (const a of order) for (const op of a.openings || []) out.push(openingSvg(a, op, T, !o.noSel && isPicked("area", a.id)));
-  for (const s of visSymbols()) out.push(symbolSvg(s, T, v.zoom, !o.noSel && isPicked("symbol", s.id)));
+  for (const a of order) for (const op of a.openings || []) out.push(openingSvg(a, op, T, !o.noSel && isPicked("area", a.id), o.k));
+  for (const s of visSymbols()) out.push(symbolSvg(s, T, v.zoom, !o.noSel && isPicked("symbol", s.id), o.minText));
   for (const l of visLabels()) {
     const [sx, sy] = T(l.x, l.y), isSel = !o.noSel && isPicked("label", l.id);
-    out.push(`<text x="${sx}" y="${sy}" font-size="${l.size || 12}" text-anchor="middle" dominant-baseline="middle" ` +
+    const lsz = o.minText ? Math.max(l.size || 12, 10) * o.k : l.size || 12;
+    out.push(`<text x="${sx}" y="${sy}" font-size="${lsz}" text-anchor="middle" dominant-baseline="middle" ` +
       `font-family="Arial, Helvetica, sans-serif" fill="${isSel ? "#2563eb" : "#111827"}">${esc(l.text)}</text>`);
   }
   if (o.live) out.push(liveSvg(T));
   return out.join("");
 }
 // Where each wall's dimension goes, in screen space.
-function dimSpecs(a, T) {
+function dimSpecs(a, T, k = 1) {
   const p = a.points, n = p.length, sp = p.map(q => T(q[0], q[1])), out = [];
   const ccw = signedAreaOf(a) > 0, hidden = new Set(a.hideDims || []);
   for (let i = 0; i < (a.closed ? n : n - 1); i++) {
@@ -1157,8 +1209,8 @@ function dimSpecs(a, T) {
     const r = riseAt(a, i), [cx, cy] = r ? T(...arcApex(A, B, r)) : [(ax + bx) / 2, (ay + by) / 2];
     let ang = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
     if (ang > 90) ang -= 180; else if (ang <= -90) ang += 180;
-    out.push({ i, mx: cx + nx * 9, my: cy + ny * 9, ang, hidden: hidden.has(i),
-      txt: r ? `${fmtLen(L)} · rise ${fmtLen(Math.abs(r))}` : fmtLen(L) });
+    out.push({ i, mx: cx + nx * 9 * k, my: cy + ny * 9 * k, ang, hidden: hidden.has(i), wallPx: Math.hypot(bx - ax, by - ay),
+      txt: r ? `${fmtLen(L)} · rise ${fmtLen(Math.abs(r))}` : fmtLen(L), short: fmtLen(L) });
   }
   return out;
 }
@@ -1198,11 +1250,12 @@ function areaSvg(a, T, o, isSel) {
   const d = "M" + outline(a).map(P2).join("L") + (a.closed ? "Z" : "");
   const ink = isSel ? "#2563eb" : line ? "#4b5563" : "#111827", width = isSel ? 2.5 : line ? 1 : site ? 1.2 : 1.6;
   const g = isCalc(a) ? groupOf(a, o.groups) : null, inner = g ? innerStretches(a, g.members) : null;
+  if (isCalc(a) && storageOf(a)) out.push(`<path d="${d}" fill="${fill}" stroke="none"/><path d="${d}" fill="url(#hatch-${storageOf(a)})" stroke="none"/>`);
   if (!inner) {
-    out.push(`<path d="${d}" fill="${fill}" stroke="${ink}" stroke-width="${width}"` +
+    out.push(`<path d="${d}" fill="${storageOf(a) && isCalc(a) ? "none" : fill}" stroke="${ink}" stroke-width="${width}"` +
       `${site ? ' stroke-dasharray="10 4 2 4"' : ""} stroke-linejoin="miter"/>`);
   } else {
-    out.push(`<path d="${d}" fill="${fill}" stroke="none"/>`);
+    if (!(isCalc(a) && storageOf(a))) out.push(`<path d="${d}" fill="${fill}" stroke="none"/>`);
     let solid = "", dashed = "";
     for (let i = 0; i < n; i++) {
       const A = p[i], B = p[(i + 1) % n], at = t => [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t];
@@ -1218,11 +1271,20 @@ function areaSvg(a, T, o, isSel) {
     if (dashed) out.push(`<path d="${dashed}" fill="none" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4 3"/>`);
   }
   if (o.dims && a.dims) {
-    for (const s of dimSpecs(a, T)) {
+    const dfs = 11 * o.k, textW = t => t.length * dfs * 0.55;   // Arial's average width is about 0.55 em
+    for (const s of dimSpecs(a, T, o.k)) {
       if (inner && inner[s.i].reduce((t, [t0, t1]) => t + t1 - t0, 0) > 0.99) continue;
       if (s.hidden && !o.live) continue;
-      out.push(`<text x="${s.mx.toFixed(1)}" y="${s.my.toFixed(1)}" font-size="11" text-anchor="middle" dominant-baseline="middle" ` +
+      // On a page export a dimension longer than its wall is shortened (a curve
+      // drops its rise), and if it still runs well past both corners it is left
+      // out and counted, so the export can say so.
+      if (o.fitDims && textW(s.txt) > s.wallPx) {
+        s.txt = s.short;
+        if (textW(s.txt) > s.wallPx * 1.6) { o.droppedDims = (o.droppedDims || 0) + 1; continue; }
+      }
+      out.push(`<text x="${s.mx.toFixed(1)}" y="${s.my.toFixed(1)}" font-size="${dfs}" text-anchor="middle" dominant-baseline="middle" ` +
         `font-family="Arial, Helvetica, sans-serif" fill="${s.hidden ? "#d1d5db" : "#374151"}"` +
+        (storageOf(a) && isCalc(a) ? ` stroke="#fff" stroke-width="${3 * o.k}" stroke-linejoin="round" paint-order="stroke"` : "") +
         `${s.hidden ? ' text-decoration="line-through"' : ""} transform="rotate(${s.ang.toFixed(2)} ${s.mx.toFixed(1)} ${s.my.toFixed(1)})">${esc(s.txt)}</text>`);
     }
   }
@@ -1231,22 +1293,26 @@ function areaSvg(a, T, o, isSel) {
   // every member shows its name only, and the largest member carries the
   // combined name and total.
   const sh = S.show || { name: true, area: true };
-  const [lx, ly] = T(...labelPos(a)), F = `text-anchor="middle" font-family="Arial, Helvetica, sans-serif"`;
+  // On a hatched (storage) area, text gets a white halo so it stays readable.
+  const halo = isCalc(a) && storageOf(a) ? ` stroke="#fff" stroke-width="${3 * o.k}" stroke-linejoin="round" paint-order="stroke"` : "";
+  const [lx, ly] = T(...labelPos(a)), F = `text-anchor="middle" font-family="Arial, Helvetica, sans-serif"${halo}`;
   const head = [sh.code && c.code ? c.code : "", sh.name ? a.name : ""].filter(Boolean).join(" ");
-  let top = [head, 'font-size="12" font-weight="bold" fill="#111827"'];
-  let bottom = sh.area ? [isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), 'font-size="11" fill="#374151"'] : null;
+  const k = o.k, big = `font-size="${12 * k}"`, small = `font-size="${11 * k}"`;
+  let top = [head, `${big} font-weight="bold" fill="#111827"`];
+  let bottom = sh.area ? [isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), `${small} fill="#374151"`] : null;
   if (g) {
     if (a === g.leader) {
-      top = [head, 'font-size="11" fill="#374151"'];
-      bottom = [`${g.name}${sh.area ? " " + fmtArea(g.total) : ""}`, 'font-size="12" font-weight="bold" fill="#111827"'];
+      top = [head, `${small} fill="#374151"`];
+      bottom = [`${g.name}${sh.area ? " " + fmtArea(g.total) : ""}`, `${big} font-weight="bold" fill="#111827"`];
     } else bottom = null;
   }
   if (!top[0]) { top = bottom; bottom = null; }
-  if (top) out.push(`<text x="${lx.toFixed(1)}" y="${(ly - (bottom ? 7 : 0)).toFixed(1)}" ${F} ${top[1]}>${esc(top[0])}</text>`);
-  if (bottom) out.push(`<text x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}" ${F} ${bottom[1]}>${esc(bottom[0])}</text>`);
-  // Details line: year built and ceiling height.
-  const info = sh.info ? infoText(a) : "";
-  if (info) out.push(`<text x="${lx.toFixed(1)}" y="${(ly + (bottom ? 21 : 14)).toFixed(1)}" ${F} font-size="10" fill="#6b7280">${esc(info)}</text>`);
+  if (top) out.push(`<text x="${lx.toFixed(1)}" y="${(ly - (bottom ? 7 * k : 0)).toFixed(1)}" ${F} ${top[1]}>${esc(top[0])}</text>`);
+  if (bottom) out.push(`<text x="${lx.toFixed(1)}" y="${(ly + 8 * k).toFixed(1)}" ${F} ${bottom[1]}>${esc(bottom[0])}</text>`);
+  // Details line: year built, ceiling height, storage class.
+  // A storage class always shows, since it moves the area out of the main GBA.
+  const info = sh.info ? infoText(a) : STORAGE[storageOf(a)].short;
+  if (info) out.push(`<text x="${lx.toFixed(1)}" y="${(ly + (bottom ? 21 : 14) * k).toFixed(1)}" ${F} font-size="${10 * k}" fill="#6b7280">${esc(info)}</text>`);
   return out.join("");
 }
 // ---------------------------------------------------------------- doors, windows and openings
@@ -1290,7 +1356,7 @@ function swingArc(H, tip, F) {
   while (d < -Math.PI) d += 2 * Math.PI;
   return Array.from({ length: 13 }, (_, j) => [H[0] + r * Math.cos(a0 + d * j / 12), H[1] + r * Math.sin(a0 + d * j / 12)]);
 }
-function openingSvg(a, o, T, isSel) {
+function openingSvg(a, o, T, isSel, k = 1) {
   const g = openingGeom(a, o);
   if (!g) return "";
   const ink = isSel ? "#2563eb" : "#111827", P = q => T(q[0], q[1]).map(v => v.toFixed(2)).join(" ");
@@ -1324,10 +1390,10 @@ function openingSvg(a, o, T, isSel) {
       out.push(`<path d="M${(x + nx * ko * 2).toFixed(2)} ${(y + ny * ko * 2).toFixed(2)}l${(tx * 4).toFixed(2)} ${(ty * 4).toFixed(2)}` +
         `l${(nx * ko * 5).toFixed(2)} ${(ny * ko * 5).toFixed(2)}l${(-tx * 4).toFixed(2)} ${(-ty * 4).toFixed(2)}Z" fill="${ink}" stroke="none"/>`);
     // Size tag outside the wall, reading along it: GL 12'×14' / DH 9'×10'.
-    const mx = (x0 + x1) / 2 + nx * ko * 16, my = (y0 + y1) / 2 + ny * ko * 16;
+    const mx = (x0 + x1) / 2 + nx * ko * 16 * k, my = (y0 + y1) / 2 + ny * ko * 16 * k;
     let ang = Math.atan2(ty, tx) * 180 / Math.PI;
     if (ang > 90) ang -= 180; else if (ang <= -90) ang += 180;
-    out.push(`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" font-size="10" font-weight="bold" text-anchor="middle" dominant-baseline="middle" ` +
+    out.push(`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" font-size="${10 * k}" font-weight="bold" text-anchor="middle" dominant-baseline="middle" ` +
       `font-family="Arial, Helvetica, sans-serif" fill="${isSel ? "#2563eb" : "#374151"}" transform="rotate(${ang.toFixed(2)} ${mx.toFixed(1)} ${my.toFixed(1)})">` +
       `${OPENINGS[o.kind].tag} ${esc(openingSize(o))}</text>`);
   }
@@ -1366,7 +1432,8 @@ function parseCeilings(text) {
 }
 const fmtCeilings = a => (a.ceilings || []).map(fmtLen).join(" / ");
 function infoText(a) {
-  return [a.yearBuilt ? `Built ${a.yearBuilt}` : "", (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean).join(" · ");
+  return [STORAGE[storageOf(a)].short, a.yearBuilt ? `Built ${a.yearBuilt}` : "",
+    (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean).join(" · ");
 }
 
 // The nearest straight wall to a point (world), within tol: { a, wall, at, L }.
@@ -1435,12 +1502,15 @@ const SYMBOLS = [
 ];
 const SYM = Object.fromEntries(SYMBOLS.map(s => [s.key, s]));
 const symScale = s => (S.units === "m" ? FT_TO_M : 1) * (s.size || 1);   // world units per symbol foot
-function symbolSvg(s, T, zoom, isSel) {
+function symbolSvg(s, T, zoom, isSel, minText) {
   const d = SYM[s.type];
   if (!d) return "";
-  const [sx, sy] = T(s.x, s.y);
-  return `<g transform="translate(${sx.toFixed(2)} ${sy.toFixed(2)}) rotate(${-(s.rot || 0)}) scale(${zoom * symScale(s)})" ` +
-    `fill="none" stroke="${isSel ? "#2563eb" : "#374151"}" stroke-width="${isSel ? 1.8 : 1}">${d.svg}</g>`;
+  const [sx, sy] = T(s.x, s.y), sc = zoom * symScale(s);
+  // A symbol's letters (REF, W, WH…) are part of the drawing and scale with it;
+  // on a page export, any that would print under the minimum text size are left off.
+  const body = minText ? d.svg.replace(/<text[^>]*font-size="([\d.]+)"[^>]*>[^<]*<\/text>/g, (m, f) => f * sc >= minText ? m : "") : d.svg;
+  return `<g transform="translate(${sx.toFixed(2)} ${sy.toFixed(2)}) rotate(${-(s.rot || 0)}) scale(${sc})" ` +
+    `fill="none" stroke="${isSel ? "#2563eb" : "#374151"}" stroke-width="${isSel ? 1.8 : 1}">${body}</g>`;
 }
 // The symbol's own frame: is world point w within its box?
 function symHit(s, w) {
@@ -1511,6 +1581,14 @@ function groupsOf() {
 function groupOf(a, groups) { return groups.get((a.group || "").trim()) || null; }
 
 // ---------------------------------------------------------------- side panel
+// Storage class of a section. Semi-cold and cold storage that counts toward
+// building area is totalled on its own, apart from the main (heated) GBA.
+const STORAGE = {
+  "":   { label: "Heated (main GBA)", short: "" },
+  semi: { label: "Semi-cold storage", short: "Semi-cold storage" },
+  cold: { label: "Cold storage",      short: "Cold storage" },
+};
+const storageOf = a => STORAGE[a.storage] ? a.storage || "" : "";
 function totals() {
   const bld = new Map(); let site = 0;
   for (const a of S.areas) {
@@ -1518,14 +1596,16 @@ function totals() {
     const v = netAreaOf(a);
     if (a.category === "site") { site += v; continue; }
     const key = a.building || "(no building)";
-    if (!bld.has(key)) bld.set(key, { building: key, building_area: 0, by_level: {}, by_category: {} });
+    if (!bld.has(key)) bld.set(key, { building: key, building_area: 0, semi: 0, cold: 0, by_level: {}, by_category: {} });
     const t = bld.get(key);
     t.by_category[a.category] = (t.by_category[a.category] || 0) + v;
-    if (a.included) {
-      t.building_area += v;
-      const lv = a.level || "(no level)";
-      t.by_level[lv] = (t.by_level[lv] || 0) + v;
-    }
+    if (!a.included) continue;
+    const st = storageOf(a);
+    if (st) { t[st] += v; continue; }
+    // building_area is the main GBA: heated space only once storage is split out.
+    t.building_area += v;
+    const lv = a.level || "(no level)";
+    t.by_level[lv] = (t.by_level[lv] || 0) + v;
   }
   return { buildings: [...bld.values()], site };
 }
@@ -1548,6 +1628,7 @@ function renderPanel() {
     $("sCat").value = it.category; $("sInc").checked = it.included; $("sDims").checked = it.dims;
     if (document.activeElement !== $("sFactor")) $("sFactor").value = factorOf(it).toFixed(2);
     $("sNeg").checked = !!it.negative;
+    $("sStorage").value = storageOf(it);
     if (document.activeElement !== $("sYear")) $("sYear").value = it.yearBuilt || "";
     if (document.activeElement !== $("sCeil")) $("sCeil").value = (it.ceilings || []).map(v => fmtLen(v).replace(/'$/, "")).join(", ");
     const adj = factorOf(it) !== 1 || it.negative ? ` (base ${fmtArea(areaOf(it))})` : "";
@@ -1565,6 +1646,7 @@ function renderPanel() {
   const groups = groupsOf();
   $("groupList").innerHTML = [...new Set(S.areas.map(a => (a.group || "").trim()).filter(Boolean))]
     .map(k => `<option value="${esc(k)}">`).join("");
+  renderPages();
   const lvls = levelsInUse();
   if (viewLevel && !lvls.includes(viewLevel)) lvls.push(viewLevel);
   $("viewLevel").innerHTML = `<option value="">All levels</option>` + lvls.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
@@ -1583,7 +1665,9 @@ function renderPanel() {
   for (const b of t.buildings) {
     for (const [lv, v] of Object.entries(b.by_level))
       h += `<tr><td colspan="2" class="hint">${esc(b.building)} — ${esc(lv)}</td><td class="n">${fmtArea(v).replace(/ .*/, "")}</td><td></td></tr>`;
-    h += `<tr class="total"><td colspan="2">${esc(b.building)} building area</td><td class="n">${fmtArea(b.building_area).replace(/ .*/, "")}</td><td></td></tr>`;
+    h += `<tr class="total"><td colspan="2">${esc(b.building)} building area${b.semi || b.cold ? " (heated)" : ""}</td><td class="n">${fmtArea(b.building_area).replace(/ .*/, "")}</td><td></td></tr>`;
+    if (b.semi) h += `<tr class="total"><td colspan="2">${esc(b.building)} semi-cold storage</td><td class="n">${fmtArea(b.semi).replace(/ .*/, "")}</td><td></td></tr>`;
+    if (b.cold) h += `<tr class="total"><td colspan="2">${esc(b.building)} cold storage</td><td class="n">${fmtArea(b.cold).replace(/ .*/, "")}</td><td></td></tr>`;
   }
   if (t.site) h += `<tr class="total"><td colspan="2">Site area</td><td class="n">${fmtArea(t.site).replace(/ .*/, "")}</td><td></td></tr>`;
   h += "</tbody></table>";
@@ -1654,6 +1738,7 @@ function renderCalcs() {
         const kv = [["Base area", n2(areaOf(a))], ["Factor", (a.negative ? "−" : "") + factorOf(a).toFixed(2)],
           ["Net area", n2(net)], ["Perimeter", n2(perimeterOf(a))]];
         if (a.level && a.category !== "site") kv.unshift(["Level", esc(a.level)]);
+        if (storageOf(a)) kv.push(["Storage", STORAGE[storageOf(a)].label]);
         if (a.yearBuilt) kv.push(["Year built", a.yearBuilt]);
         if ((a.ceilings || []).length) kv.push(["Ceiling", esc(fmtCeilings(a))]);
         if (a.category !== "site" && !a.included) kv.push(["Building area", "not counted"]);
@@ -1669,7 +1754,11 @@ function renderCalcs() {
   }
   if (!h) { $("calcs").innerHTML = `<div class="hint">Closed areas appear here with their calculations.</div>`; return; }
   h += `<div id="calcSum"><div><span>Defined areas</span><span>${S.areas.filter(isCalc).length}</span></div>`;
-  for (const b of t.buildings) h += `<div><span>${esc(b.building)} — building area</span><span>${n2(b.building_area)} ${u}</span></div>`;
+  for (const b of t.buildings) {
+    h += `<div><span>${esc(b.building)} — building area${b.semi || b.cold ? " (heated)" : ""}</span><span>${n2(b.building_area)} ${u}</span></div>`;
+    if (b.semi) h += `<div><span>${esc(b.building)} — semi-cold storage</span><span>${n2(b.semi)} ${u}</span></div>`;
+    if (b.cold) h += `<div><span>${esc(b.building)} — cold storage</span><span>${n2(b.cold)} ${u}</span></div>`;
+  }
   for (const g of groupsOf().values()) h += `<div><span>${esc(g.name)} (combined)</span><span>${n2(g.total)} ${u}</span></div>`;
   if (t.site) h += `<div><span>Site area</span><span>${n2(t.site)} ${u}</span></div>`;
   for (const [b, d] of Object.entries(doorsByBuilding())) {
@@ -1679,7 +1768,7 @@ function renderCalcs() {
   $("calcs").innerHTML = h + "</div>";
 }
 function syncInfoFields() {
-  for (const k of ["title", "address", "file", "preparer", "date"]) $("i" + k[0].toUpperCase() + k.slice(1)).value = S.info[k] || "";
+  for (const k of ["title", "site", "address", "file", "preparer", "date"]) $("i" + k[0].toUpperCase() + k.slice(1)).value = S.info[k] || "";
   $("units").value = S.units;
   $("dimFmt").disabled = S.units === "m";
   const sh = S.show || { name: true, area: true };
@@ -1688,29 +1777,37 @@ function syncInfoFields() {
 }
 
 // ---------------------------------------------------------------- exports
-// Print scale: feet "1 inch = X ft"; metres "1:X". The SVG is laid out at 96 px per inch.
+// Every export is a real page laid out in points (1/72 in): the chosen paper
+// less its margins, or the report-figure size. Font sizes are therefore print
+// sizes. "Min text" is the smallest text on the page (10 pt by default); all
+// other text scales up from it. Without a scale the plan is fitted to what the
+// page has left after the title block and the table, in both directions, so a
+// sheet is always one page.
+const PT = 72;
+const PAPER = { letter: [8.5, 11], legal: [8.5, 14], "11in 17in": [11, 17], A4: [8.27, 11.69], A3: [11.69, 16.54], fig: [6.5, 9] };
+const PRINT_MARGIN = 0.4;
+const pageMargin = () => $("exPaper").value === "fig" ? 0 : PRINT_MARGIN;
+// The printable area of the chosen paper, in inches: [width, height].
+function paperInches() {
+  const [w, h] = PAPER[$("exPaper").value], land = $("exOrient").value === "landscape", m = pageMargin();
+  return [(land ? h : w) - 2 * m, (land ? w : h) - 2 * m];
+}
+// Print scale: feet "1 inch = X ft"; metres "1:X". zoom is points per drawing unit.
 function exportScale() {
   const X = parseFloat($("exScale").value);
   if (!(X > 0)) return null;
-  return { X, zoom: S.units === "m" ? 96 * 39.3701 / X : 96 / X, text: S.units === "m" ? `Scale 1:${fmtNum(X, 2)}` : `Scale 1" = ${fmtNum(X, 2)}'` };
+  return { X, zoom: S.units === "m" ? PT * 39.3701 / X : PT / X, text: S.units === "m" ? `Scale 1:${fmtNum(X, 2)}` : `Scale 1" = ${fmtNum(X, 2)}'` };
 }
-const PAPER = { letter: [8.5, 11], legal: [8.5, 14], "11in 17in": [11, 17], A4: [8.27, 11.69], A3: [11.69, 16.54] };
-const PRINT_MARGIN = 0.4;
-function paperInches() {
-  const [w, h] = PAPER[$("exPaper").value], land = $("exOrient").value === "landscape";
-  return [(land ? h : w) - 2 * PRINT_MARGIN, (land ? w : h) - 2 * PRINT_MARGIN];
-}
-function exportSvg(opts) {
-  const withTable = $("exTable").checked, sc = exportScale();
-  const pad = 50, titleH = 96;
+function minTextPt() { const v = parseFloat($("exMinPt").value); return v >= 4 && v <= 36 ? v : 10; }
+let exportNotes = [];   // what the last export had to warn about
+function exportSvg() {
   const pts = allPoints(false);
   if (!pts.length) return null;
-  const b = bbox(pts), bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);
-  const Wd = sc ? Math.max(1000, Math.ceil(bw * sc.zoom + 2 * pad + 60)) : 1400;
-  const zoom = sc ? sc.zoom : Math.min((Wd - 2 * pad - 60) / bw, 1100 / bh);
-  const drawH = Math.ceil(bh * zoom + 2 * pad + 40);
-  const v = { cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, zoom };
-  const body = scene(v, Wd, drawH, { grid: false, underlay: false, dims: $("showDims").checked, live: false, noSel: true });
+  exportNotes = [];
+  const withTable = $("exTable").checked, sc = exportScale(), m = minTextPt(), k = m / 10;
+  const [pw, ph] = paperInches(), W = pw * PT, Hpage = ph * PT;
+  const pad = 1.2 * m, drawPad = 3 * m;
+  const b = bbox(pts), bw = Math.max(b.x1 - b.x0, 1e-3), bh = Math.max(b.y1 - b.y0, 1e-3);
   const t = totals(), rows = [];
   if (withTable) {
     const list = visAreas().filter(isCalc).sort((a, c) =>
@@ -1721,49 +1818,81 @@ function exportSvg(opts) {
       ? ` (${fmtArea(areaOf(a))} × ${a.negative ? "−" : ""}${fmtNum(factorOf(a), 2)})` : "";
     for (const a of list) rows.push([a.name, a.category === "site" ? "Site" : [a.building, a.level].filter(Boolean).join(" — "),
       CAT[a.category].label + calc(a), fmtArea(netAreaOf(a)), a.included && a.category !== "site" ? "yes" : "", false,
-      [a.yearBuilt || "", fmtCeilings(a)].filter(Boolean).join(" · ")]);
+      [a.yearBuilt || "", fmtCeilings(a), STORAGE[a.storage || ""].short].filter(Boolean).join(" · ")]);
     for (const g of groupsOf().values()) {
-      const shown = g.members.filter(visible);
-      if (!shown.length) continue;
+      if (!g.members.some(visible)) continue;
       rows.push([`${g.name} (combined)`, g.members.map(m => m.name).join(" + "), "", fmtArea(g.total), "", true]);
     }
+    // Totals cover the whole property, so with several pages (or one level shown) they say so.
+    const all = [viewLevel ? "all levels" : "", S.pages.length > 1 ? "all pages" : ""].filter(Boolean).join(", ");
+    const scope = all ? ` (${all})` : "";
     for (const bt of t.buildings) {
       if (viewLevel && bt.by_level[viewLevel] !== undefined)
         rows.push([`${bt.building} — ${viewLevel} area`, "", "", fmtArea(bt.by_level[viewLevel]), "", true]);
-      rows.push([`${bt.building} — building area${viewLevel ? " (all levels)" : ""}`, "", "", fmtArea(bt.building_area), "", true]);
+      const split = bt.semi || bt.cold;
+      rows.push([`${bt.building} — building area${split ? " (heated)" : ""}${scope}`, "", "", fmtArea(bt.building_area), "", true]);
+      if (bt.semi) rows.push([`${bt.building} — semi-cold storage${scope}`, "", "", fmtArea(bt.semi), "", true]);
+      if (bt.cold) rows.push([`${bt.building} — cold storage${scope}`, "", "", fmtArea(bt.cold), "", true]);
     }
     if (t.site) rows.push(["Site area", "", "", fmtArea(t.site), "", true]);
-    // Door counts belong to the building, whatever level is shown.
-    for (const [b, d] of Object.entries(doorsByBuilding())) {
-      if (d.dock_doors.length) rows.push([`${b} — dock-height doors: ${doorSizesText(d.dock_doors)}`, "", "", "", "", true]);
-      if (d.grade_level_doors.length) rows.push([`${b} — grade-level doors: ${doorSizesText(d.grade_level_doors)}`, "", "", "", "", true]);
+    // Door counts belong to the building, whatever page or level is shown.
+    for (const [bn, d] of Object.entries(doorsByBuilding())) {
+      if (d.dock_doors.length) rows.push([`${bn} — dock-height doors: ${doorSizesText(d.dock_doors)}`, "", "", "", "", true]);
+      if (d.grade_level_doors.length) rows.push([`${bn} — grade-level doors: ${doorSizesText(d.grade_level_doors)}`, "", "", "", "", true]);
     }
   }
-  const rowH = 22, tableH = rows.length ? rowH * (rows.length + 1) + 40 : 0;
-  const Ht = titleH + drawH + tableH + 30;
-  const F = `font-family="Arial, Helvetica, sans-serif"`, info = S.info;
-  const title = (info.title || "Sketch") + (viewLevel ? ` — ${viewLevel}` : "");
-  const size = sc ? `width="${(Wd / 96).toFixed(3)}in" height="${(Ht / 96).toFixed(3)}in" data-scaled="1"` : `width="${Wd}" height="${Ht}"`;
-  let s = `<svg xmlns="http://www.w3.org/2000/svg" ${size} viewBox="0 0 ${Wd} ${Ht}">` +
+  // Title block: title (and page / level) left, file and date right; then the site line.
+  const info = S.info, pIdx = S.pages.findIndex(p => p.id === curPage), multi = S.pages.length > 1;
+  const titleSz = 2 * m, subSz = 1.3 * m, rightSz = 1.1 * m;
+  const title = (info.title || "Sketch") + (multi ? ` — ${S.pages[pIdx].name}` : "") + (viewLevel ? ` — ${viewLevel}` : "");
+  const site = [info.site, info.address].filter(Boolean).join(" — ");
+  const rightLines = [info.file ? "File " + info.file : "", [info.preparer, info.date].filter(Boolean).join(" · "),
+    multi ? `Page ${pIdx + 1} of ${S.pages.length}` : ""].filter(Boolean);
+  const leftH = titleSz * 1.1 + (site ? subSz * 1.5 : 0), rightH = rightLines.length * rightSz * 1.35 + m * 1.35;
+  const titleH = Math.max(leftH, rightH) + m * 0.9;
+  const rowH = 1.7 * m, tableH = rows.length ? rowH * (rows.length + 1) + m * 1.2 : 0;
+  // The drawing: fitted into what's left of the page, or at the set scale.
+  let zoom, Wout = W, Hout = Hpage, drawH;
+  if (sc) {
+    zoom = sc.zoom;
+    Wout = Math.max(W, bw * zoom + 2 * drawPad);
+    drawH = Math.max(bh * zoom + 2 * drawPad, Hpage - titleH - tableH);
+    Hout = titleH + drawH + tableH;
+    const wi = Wout / PT, hi = Hout / PT, paper = $("exPaper").selectedOptions[0].textContent + " " + $("exOrient").value;
+    if (wi > pw + 0.01 || hi > ph + 0.01)
+      exportNotes.push(`⚠ At ${sc.text.replace("Scale ", "")} the sheet is ${fmtNum(wi, 1)} × ${fmtNum(hi, 1)} in; ${paper} holds ${fmtNum(pw, 1)} × ${fmtNum(ph, 1)} in. Use a bigger scale number or paper.`);
+  } else {
+    drawH = Hpage - titleH - tableH;
+    if (drawH < Hpage * 0.3) exportNotes.push("⚠ The area table takes most of the page, so the plan is small. Untick table, or use bigger paper.");
+    zoom = Math.min((W - 2 * drawPad) / bw, Math.max(drawH - 2 * drawPad, m * 4) / bh);
+  }
+  const v = { cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, zoom };
+  const o = { grid: false, underlay: false, dims: $("showDims").checked, live: false, noSel: true, k, minText: m, fitDims: true };
+  const body = scene(v, Wout, drawH, o);
+  if (o.droppedDims) exportNotes.push(`⚠ ${o.droppedDims} dimension(s) were too long for their walls at ${fmtNum(m, 1)} pt and were left off. Use bigger paper, a smaller minimum, or hide neighbouring dimensions.`);
+  const F = `font-family="Arial, Helvetica, sans-serif"`;
+  // Sized in inches so it prints, rasterises and places at its true size; a hair
+  // under the page height so rounding never spills onto a second sheet.
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${(Wout / PT).toFixed(3)}in" height="${(Hout / PT - 0.01).toFixed(3)}in" ` +
+    `viewBox="0 0 ${Wout.toFixed(2)} ${Hout.toFixed(2)}" data-pt="1">` +
     `<rect width="100%" height="100%" fill="#fff"/>` +
-    `<text x="${pad}" y="42" font-size="24" font-weight="bold" ${F} fill="#111827">${esc(title)}</text>` +
-    `<text x="${pad}" y="70" font-size="15" ${F} fill="#374151">${esc(info.address || "")}</text>` +
-    `<text x="${Wd - pad}" y="42" font-size="13" text-anchor="end" ${F} fill="#374151">${esc(info.file ? "File " + info.file : "")}</text>` +
-    `<text x="${Wd - pad}" y="62" font-size="13" text-anchor="end" ${F} fill="#374151">${esc([info.preparer, info.date].filter(Boolean).join(" · "))}</text>` +
-    `<text x="${Wd - pad}" y="82" font-size="11" text-anchor="end" ${F} fill="#6b7280">${sc ? sc.text : "Not to scale"} · dimensions in ${S.units === "m" ? "metres" : "feet"}</text>` +
-    `<line x1="${pad}" y1="${titleH - 8}" x2="${Wd - pad}" y2="${titleH - 8}" stroke="#9ca3af"/>` +
-    `<g transform="translate(0 ${titleH})">${body}</g>` + northArrow(Wd - pad - 20, titleH + 40);
+    `<text x="${pad}" y="${(titleSz * 1.05).toFixed(1)}" font-size="${titleSz}" font-weight="bold" ${F} fill="#111827">${esc(title)}</text>` +
+    (site ? `<text x="${pad}" y="${(titleSz * 1.05 + subSz * 1.4).toFixed(1)}" font-size="${subSz}" ${F} fill="#374151">${esc(site)}</text>` : "") +
+    rightLines.map((l, i) => `<text x="${Wout - pad}" y="${(rightSz * (1 + i * 1.35)).toFixed(1)}" font-size="${rightSz}" text-anchor="end" ${F} fill="#374151">${esc(l)}</text>`).join("") +
+    `<text x="${Wout - pad}" y="${(rightSz * (1 + rightLines.length * 1.35) + m * 0.2).toFixed(1)}" font-size="${m}" text-anchor="end" ${F} fill="#6b7280">${sc ? sc.text : "Not to scale"} · dimensions in ${S.units === "m" ? "metres" : "feet"}</text>` +
+    `<line x1="${pad}" y1="${(titleH - m * 0.4).toFixed(1)}" x2="${Wout - pad}" y2="${(titleH - m * 0.4).toFixed(1)}" stroke="#9ca3af"/>` +
+    `<g transform="translate(0 ${titleH.toFixed(2)})">${body}</g>` + northArrow(Wout - pad - 1.6 * m, titleH + 2.6 * m, k);
   if (rows.length) {
-    let y = titleH + drawH + 20;
-    // A "Built / ceiling" column appears only when some section has a year or ceiling height.
-    const details = rows.some(r => r[6]), span = Wd - 2 * pad;
-    const cols = (details ? [0, .22, .40, .58, .77, .86] : [0, .29, .51, null, .71, .84]).map(f => f === null ? null : pad + f * span);
-    const sizeX = cols[4] + .09 * span;
+    let y = titleH + drawH + m * 0.4;
+    // A "Built / ceiling" column appears only when some section has a year, ceiling height or storage class.
+    const details = rows.some(r => r[6]), span = Wout - 2 * pad;
+    const cols = (details ? [0, .22, .40, .58, .80, .88] : [0, .29, .51, null, .74, .86]).map(f => f === null ? null : pad + f * span);
+    const sizeX = cols[4] + .07 * span;
     const cell = (text, i, bold) => cols[i] === null ? "" :
-      `<text x="${i === 4 ? sizeX : cols[i]}" y="${y}" font-size="13" ${F} ${bold ? 'font-weight="bold"' : ""} ${i === 4 ? 'text-anchor="end"' : ""}>${esc(text)}</text>`;
-    s += `<line x1="${pad}" y1="${y}" x2="${Wd - pad}" y2="${y}" stroke="#9ca3af"/>`;
+      `<text x="${(i === 4 ? sizeX : cols[i]).toFixed(1)}" y="${y.toFixed(1)}" font-size="${m}" ${F} ${bold ? 'font-weight="bold"' : ""} ${i === 4 ? 'text-anchor="end"' : ""}>${esc(text)}</text>`;
+    s += `<line x1="${pad}" y1="${y.toFixed(1)}" x2="${Wout - pad}" y2="${y.toFixed(1)}" stroke="#9ca3af"/>`;
     y += rowH;
-    ["Area", "Building / level", "Category", "Built / ceiling", "Size", "In bldg area"].forEach((h, i) => s += cell(h, i, true));
+    ["Area", "Building / level", "Category", "Built · ceiling · storage", "Size", "In bldg area"].forEach((h, i) => s += cell(h, i, true));
     for (const r of rows) {
       y += rowH;
       [r[0], r[1], r[2], r[6] || "", r[3], r[4]].forEach((c, i) => s += cell(c, i, r[5]));
@@ -1771,19 +1900,36 @@ function exportSvg(opts) {
   }
   return s + "</svg>";
 }
-// At a set scale the plan has a real size: say so when it won't fit the paper.
-function scaleFitNote(svgText) {
-  const sc = exportScale(), m = svgText.match(/viewBox="0 0 (\d+) (\d+)"/);
-  if (!sc || !m) return "";
-  const w = +m[1] / 96, h = +m[2] / 96, [pw, ph] = paperInches();
-  const paper = $("exPaper").selectedOptions[0].textContent + " " + $("exOrient").value;
-  return w > pw + 0.01 || h > ph + 0.01
-    ? `⚠ At ${sc.text.replace("Scale ", "")} the sheet is ${fmtNum(w, 1)} × ${fmtNum(h, 1)} in; ${paper} holds ${fmtNum(pw, 1)} × ${fmtNum(ph, 1)} in. Use a bigger scale number or paper.`
-    : `${sc.text}: ${fmtNum(w, 1)} × ${fmtNum(h, 1)} in, fits ${paper}.`;
-}
-function northArrow(x, y) {
-  return `<g transform="translate(${x} ${y})"><path d="M0 -22L8 10L0 4L-8 10Z" fill="#111827"/>` +
+function northArrow(x, y, k = 1) {
+  return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${k})"><path d="M0 -22L8 10L0 4L-8 10Z" fill="#111827"/>` +
     `<text x="0" y="26" font-size="13" text-anchor="middle" font-family="Arial" font-weight="bold">N</text></g>`;
+}
+// Every page as its own sheet (the shown level applies to each).
+function exportAllPages() {
+  const keep = curPage, out = [];
+  for (const p of S.pages) { curPage = p.id; const s = exportSvg(); if (s) out.push({ page: p, svg: s, notes: exportNotes.slice() }); }
+  curPage = keep;
+  return out;
+}
+function showExportNotes(notes, okMsg) {
+  const bad = notes.find(n => n.startsWith("⚠"));
+  status(bad || notes[0] || okMsg || "", bad ? "bad" : "ok");
+}
+// An exported page as a PNG or JPG at the chosen DPI: the image is the page's
+// true size, so placed at that size in a report its text is at least Min text.
+function rasterize(svgText, type) {
+  return new Promise((resolve, reject) => {
+    const m = svgText.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/), dpi = +$("exDpi").value || 300;
+    const w = Math.round(+m[1] / PT * dpi), h = Math.round(+m[2] / PT * dpi);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+      c.toBlob(b => b ? resolve(b) : reject(new Error("the image was too large to make")), type, 0.92);
+    };
+    img.onerror = () => reject(new Error("the plan couldn't be drawn as an image"));
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+  });
 }
 function areasJson() {
   const toSf = v => S.units === "m" ? v / (FT_TO_M * FT_TO_M) : v;
@@ -1797,7 +1943,7 @@ function areasJson() {
     format: "jks-sketch-areas", version: 1,
     generated: new Date().toISOString(),
     drawn_in: S.units === "m" ? "metres" : "feet",
-    title: S.info.title, property: S.info.address, file_number: S.info.file,
+    title: S.info.title, site_name: S.info.site || "", property: S.info.address, file_number: S.info.file,
     prepared_by: S.info.preparer, sketch_date: S.info.date,
     areas: S.areas.filter(isCalc).map(a => ({
       name: a.name, building: a.building, level: a.level,
@@ -1806,6 +1952,7 @@ function areasJson() {
       combined_as: groupOf(a, groups) ? a.group.trim() : null,
       base_area: both(areaOf(a)), factor: factorOf(a), negative: !!a.negative,
       area: both(netAreaOf(a)),
+      storage: { "": "heated", semi: "semi_cold", cold: "cold" }[storageOf(a)],
       year_built: a.yearBuilt || null,
       ceiling_heights: (a.ceilings || []).map(len),
       openings: (a.openings || []).map(o => ({ kind: o.kind, kind_label: OPENINGS[o.kind].label, wall: o.wall + 1,
@@ -1819,6 +1966,9 @@ function areasJson() {
         building: b.building, building_area: both(b.building_area),
         by_level: Object.fromEntries(Object.entries(b.by_level).map(([k, v]) => [k, both(v)])),
         by_category: Object.fromEntries(Object.entries(b.by_category).map(([k, v]) => [k, both(v)])),
+        // building_area is the main (heated) GBA; storage that counts is totalled apart.
+        semi_cold_storage_area: both(b.semi), cold_storage_area: both(b.cold),
+        total_including_storage: both(b.building_area + b.semi + b.cold),
         dock_doors: doors(d.dock_doors), grade_level_doors: doors(d.grade_level_doors),
       };
     }),
@@ -2043,14 +2193,14 @@ svg.addEventListener("mousedown", e => {
     if (!text) text = (prompt("Label text (or fill in Label text in the panel to place it with one click):") || "").trim();
     if (text) {
       pushHistory();
-      const p = snapPoint(w).pt, l = { id: S.nextId++, x: p[0], y: p[1], text, size: 12, level: viewLevel || undefined };
+      const p = snapPoint(w).pt, l = { id: S.nextId++, x: p[0], y: p[1], text, size: 12, level: viewLevel || undefined, page: curPage };
       S.labels.push(l); setSel({ kind: "label", id: l.id }); rememberLabel(text); commit();
     }
   } else if (tool === "opening") {
     placeOpening(w);
   } else if (tool === "symbol") {
     pushHistory();
-    const p = snapPoint(w).pt, s = { id: S.nextId++, type: curSym, x: p[0], y: p[1], rot: 0, size: 1, level: viewLevel || undefined };
+    const p = snapPoint(w).pt, s = { id: S.nextId++, type: curSym, x: p[0], y: p[1], rot: 0, size: 1, level: viewLevel || undefined, page: curPage };
     S.symbols.push(s); setSel({ kind: "symbol", id: s.id }); commit();
     status(`${SYM[curSym].label} placed. Click again for another; rotate and resize under Selected.`, "ok");
   } else if (tool === "calib") {
@@ -2153,6 +2303,7 @@ onSelEdit("sYear", (a, el) => {
   else if (/^\d{4}$/.test(t) && +t >= 1700 && +t <= 2200) a.yearBuilt = +t;
   else status("Year built: a four-digit year, e.g. 1985.", "bad");
 }, "change");
+onSelEdit("sStorage", (a, el) => { delete el.dataset.dirty; if (el.value) a.storage = el.value; else delete a.storage; }, "change");
 onSelEdit("sCeil", (a, el) => {
   delete el.dataset.dirty;
   const r = parseCeilings(el.value);
@@ -2261,7 +2412,7 @@ $("calcs").addEventListener("click", e => {
 $("cExpand").onclick = () => { for (const k of calcKeys()) calcOpen.set(k, true); renderCalcs(); };
 // As in Apex, Collapse all still shows every area's net figure; it folds only the detail.
 $("cCollapse").onclick = () => { for (const k of calcKeys()) calcOpen.set(k, !k.startsWith("a:")); renderCalcs(); };
-for (const k of ["title", "address", "file", "preparer", "date"]) {
+for (const k of ["title", "site", "address", "file", "preparer", "date"]) {
   const el = $("i" + k[0].toUpperCase() + k.slice(1));
   el.addEventListener("change", () => { pushHistory(); S.info[k] = el.value; commit(); });
 }
@@ -2281,7 +2432,7 @@ $("bNew").onclick = () => {
   if (S.areas.length && !confirm("Start a new sketch? Unsaved work is lost (Undo can bring it back).")) return;
   pushHistory();
   const keepUnits = S.units; S = emptySketch(); S.units = keepUnits; setCats(defaultCats());
-  draw = null; setSel(null); pen = [0, 0]; viewLevel = ""; syncInfoFields(); commit(); fit();
+  draw = null; setSel(null); pen = [0, 0]; viewLevel = ""; ensurePages(); syncInfoFields(); commit(); fit();
 };
 $("units").onchange = () => {
   const to = $("units").value; if (to === S.units) return;
@@ -2338,39 +2489,49 @@ $("fImg").onchange = () => {
 $("uOpacity").oninput = () => { if (underlay) { underlay.opacity = $("uOpacity").value / 100; render(); } };
 $("uRot").oninput = () => { if (underlay) { underlay.rot = +$("uRot").value || 0; render(); } };
 $("bClearU").onclick = () => { underlay = null; if (tool === "calib" || tool === "moveU") setTool("draw"); render(); };
-// A level view exports that level: the file name says which.
-const exportName = () => baseName() + (viewLevel ? " " + viewLevel.replace(/[\\/:*?"<>|]+/g, "-") : "");
+// SVG, PNG and JPG are of the page being shown (and the level, if one is
+// chosen); the file name says which. Print makes every page.
+const fileSafe = t => t.replace(/[\\/:*?"<>|]+/g, "-").trim();
+function exportName() {
+  const i = S.pages.findIndex(p => p.id === curPage);
+  return baseName() + (S.pages.length > 1 ? ` p${i + 1} ${fileSafe(S.pages[i].name)}` : "") + (viewLevel ? " " + fileSafe(viewLevel) : "");
+}
 $("bSvg").onclick = () => {
   if (!needAreas()) return;
-  saveFile(exportName() + ".svg", new Blob([exportSvg()], { type: "image/svg+xml" }), "SVG image", "image/svg+xml", ".svg");
+  const s = exportSvg();
+  if (!s) return status("Nothing on this page to export.", "bad");
+  saveFile(exportName() + ".svg", new Blob([s], { type: "image/svg+xml" }), "SVG image", "image/svg+xml", ".svg");
+  showExportNotes(exportNotes);
 };
-$("bPng").onclick = () => {
-  if (!needAreas()) return;
-  const s = exportSvg(), m = s.match(/viewBox="0 0 (\d+) (\d+)"/), k = 2;
-  const img = new Image();
-  img.onload = () => {
-    const c = document.createElement("canvas"); c.width = +m[1] * k; c.height = +m[2] * k;
-    const g = c.getContext("2d"); g.scale(k, k); g.drawImage(img, 0, 0, +m[1], +m[2]);
-    c.toBlob(b => saveFile(exportName() + ".png", b, "PNG image", "image/png", ".png"), "image/png");
+for (const [id, type, ext, desc] of [["bPng", "image/png", ".png", "PNG image"], ["bJpg", "image/jpeg", ".jpg", "JPEG image"]])
+  $(id).onclick = async () => {
+    if (!needAreas()) return;
+    const s = exportSvg();
+    if (!s) return status("Nothing on this page to export.", "bad");
+    const notes = exportNotes.slice();
+    try { await saveFile(exportName() + ext, await rasterize(s, type), desc, type, ext); showExportNotes(notes); }
+    catch (err) { status("Couldn't make the image: " + err.message, "bad"); }
   };
-  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(s);
-};
 $("bAreas").onclick = () => {
   if (!needAreas()) return;
   saveFile(baseName() + " areas.json", new Blob([JSON.stringify(areasJson(), null, 2)], { type: "application/json" }),
     "Areas", "application/json", ".json");
 };
+// Print (and Save as PDF): one sheet per page, at the paper and margins chosen.
 $("bPrint").onclick = () => {
   if (!needAreas()) return;
-  const s = exportSvg(), note = scaleFitNote(s);
+  const sheets = exportAllPages();
+  const [w, h] = PAPER[$("exPaper").value], land = $("exOrient").value === "landscape";
   let ps = $("pageStyle");
   if (!ps) { ps = document.createElement("style"); ps.id = "pageStyle"; document.head.appendChild(ps); }
-  ps.textContent = `@page { size: ${$("exPaper").value} ${$("exOrient").value}; margin: ${PRINT_MARGIN}in; }`;
-  if (note) status(note, note.startsWith("⚠") ? "bad" : "ok");
-  $("printArea").innerHTML = s; window.print();
+  ps.textContent = `@page { size: ${land ? h : w}in ${land ? w : h}in; margin: ${pageMargin()}in; }`;
+  showExportNotes(sheets.flatMap(x => x.notes.map(n => (S.pages.length > 1 ? `${x.page.name}: ` : "") + n)),
+    `Printing ${sheets.length} page${sheets.length > 1 ? "s" : ""}.`);
+  $("printArea").innerHTML = sheets.map(x => `<div class="sheet">${x.svg}</div>`).join("");
+  window.print();
 };
-for (const id of ["exScale", "exPaper", "exOrient"]) $(id).addEventListener("change", () => {
-  if (S.areas.length) { const n = scaleFitNote(exportSvg() || ""); if (n) status(n, n.startsWith("⚠") ? "bad" : "ok"); }
+for (const id of ["exScale", "exPaper", "exOrient", "exMinPt"]) $(id).addEventListener("change", () => {
+  if (S.areas.length && exportSvg()) showExportNotes(exportNotes, `Page ${fmtNum(paperInches()[0], 2)} × ${fmtNum(paperInches()[1], 2)} in, text at least ${fmtNum(minTextPt(), 1)} pt.`);
 });
 function showHelp(on) { $("help").hidden = !on; if (!on) cmd.focus(); }
 $("bHelp").onclick = () => showHelp(true);
@@ -2408,6 +2569,43 @@ $("bRotate").onclick = () => {
   status(`Rotated ${picks.length ? "the selection" : "the sketch"} ${fmtNum(deg, 2)}°.`, "ok");
 };
 
+// ---------------------------------------------------------------- pages
+function goPage(id) {
+  curPage = id; setSel(null); draw = null; viewLevel = "";
+  renderPanel(); fit();
+  const i = S.pages.findIndex(p => p.id === id);
+  status(`Page ${i + 1} of ${S.pages.length}: ${S.pages[i].name}.`);
+}
+$("pageSel").onchange = () => goPage($("pageSel").value);
+$("bPageAdd").onclick = () => {
+  const name = (prompt("Name of the new page (e.g. Site plan, Second floor):", `Page ${S.pages.length + 1}`) || "").trim();
+  if (!name) return;
+  pushHistory();
+  let n = S.pages.length + 1;
+  while (S.pages.some(p => p.id === "p" + n)) n++;
+  S.pages.push({ id: "p" + n, name });
+  commit(); goPage("p" + n);
+};
+$("bPageRen").onclick = () => {
+  const p = S.pages.find(x => x.id === curPage);
+  const name = (prompt("Page name:", p.name) || "").trim();
+  if (!name || name === p.name) return;
+  pushHistory(); p.name = name; commit();
+};
+$("bPageDel").onclick = () => {
+  if (S.pages.length < 2) return;
+  const p = S.pages.find(x => x.id === curPage);
+  const on = [...S.areas, ...S.labels, ...S.symbols].filter(x => pageOf(x) === p.id).length;
+  if (on && !confirm(`Delete page "${p.name}" and the ${on} item(s) on it? (Undo can bring it back.)`)) return;
+  pushHistory();
+  const keep = x => pageOf(x) !== p.id;
+  // Items with no page belong to the first page: pin them before the first page can change.
+  for (const x of [...S.areas, ...S.labels, ...S.symbols]) x.page = pageOf(x);
+  S.areas = S.areas.filter(keep); S.labels = S.labels.filter(keep); S.symbols = S.symbols.filter(keep);
+  S.pages = S.pages.filter(x => x !== p);
+  curPage = S.pages[0].id; commit(); goPage(curPage);
+};
+
 // ---------------------------------------------------------------- copy / paste
 // Pasting while one level is shown puts the copy on that level, in place: copy
 // the main floor, show Upper, paste, and the floor plate is there to edit.
@@ -2422,22 +2620,24 @@ function pasteClip() {
   if (!clip || !clip.length) return status("Nothing copied.", "bad");
   const pts = clip.flatMap(({ kind, it }) => kind === "area" ? it.points : [[it.x, it.y]]), b = bbox(pts);
   const toLevel = viewLevel && clip.some(({ it }) => (it.level || "") !== viewLevel);
-  const off = toLevel ? 0 : (b.x1 - b.x0) + (parseFloat($("snap").value) || 1) * 5;
+  // Onto another page or level the copy lands in place; on the same one, beside the original.
+  const toPage = clip.some(({ it }) => pageOf(it) !== curPage);
+  const off = toLevel || toPage ? 0 : (b.x1 - b.x0) + (parseFloat($("snap").value) || 1) * 5;
   pushHistory();
   picks = [];
   for (const { kind, it } of JSON.parse(JSON.stringify(clip))) {
-    it.id = S.nextId++;
+    it.id = S.nextId++; it.page = curPage;
     if (toLevel && (kind !== "area" || it.category !== "site")) it.level = viewLevel;
     if (kind === "area") {
       it.points = it.points.map(p => [round4(p[0] + off), p[1]]);
-      if (!toLevel) it.name += " (copy)";
+      if (!toLevel && !toPage) it.name += " (copy)";
       S.areas.push(it);
     } else { it.x = round4(it.x + off); listOf(kind).push(it); }
     picks.push({ kind, id: it.id });
   }
   sel = picks[0];
   commit();
-  status(`Pasted ${clip.length} item(s)${toLevel ? ` onto ${viewLevel}` : ""}.`, "ok");
+  status(`Pasted ${clip.length} item(s)${toLevel ? ` onto ${viewLevel}` : toPage ? " in place on this page" : ""}.`, "ok");
 }
 
 // ---------------------------------------------------------------- area library
@@ -2508,8 +2708,10 @@ try {
   if (saved) { const d = JSON.parse(saved); if (d.format === "jks-sketch") S = Object.assign(emptySketch(), d); }
 } catch (e) { /* no autosave available */ }
 setCats(S.cats || defaultCats());
+ensurePages();
 fillLabelList();
 $("oKind").innerHTML = Object.entries(OPENINGS).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join("");
+for (const id of ["nStorage", "sStorage"]) $(id).innerHTML = Object.entries(STORAGE).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join("");
 $("oWidth").value = openingDefault("door"); $("oHeight").value = openingHeightDefault("door");
 $("yType").innerHTML = SYMBOLS.map(s => `<option value="${s.key}">${s.label}</option>`).join("");
 // Symbol palette: each button previews its symbol fitted to the button.
