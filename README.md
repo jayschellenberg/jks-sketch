@@ -99,6 +99,24 @@ and struck through so it can be clicked back.
 underlay) when nothing is selected, by any angle. Shift+click and fence-select
 pick several items; drag, arrows, Delete, Ctrl+C and Rotate act on them all.
 
+**Doors and windows.** Choose a kind (door, double door, window, overhead
+door, plain opening) and width under *Doors, windows, symbols*, then with the
+*Door/Window* tool click a wall: the opening is centred where you click,
+snapped to the grid. Select the area to edit each opening: kind, wall (numbered
+as in the vectors), centre distance from the wall's first corner, width, swing
+*out* instead of into the room, and ⇄ to hinge at the other jamb. Openings
+belong to their area: they move, rotate, mirror and copy with it, and never
+change an area. Curved walls take no openings. `areas.json` lists each area's
+openings (kind, wall, width).
+
+**Symbols.** Click a symbol in the palette (stairs, toilet, sink, tub, shower,
+range, refrigerator, washer/dryer, water heater, furnace, electrical panel,
+fireplace, column, car, dock leveller, ramp, tree, arrow), then click the plan
+to place it; keep clicking for more. Symbols are drawn at real size, so they
+scale with the plan. Select one to rotate it (⟲ ⟳ 90°, or any angle) or resize
+it. They copy, rotate with the sketch and sit on the level being shown, like
+labels.
+
 **Room labels.** Type a room name in *Label text* (it offers common ones and
 the ones you've used), then each click of the Label tool places it.
 
@@ -153,6 +171,5 @@ page, and the status bar warns when the plan won't fit.
 
 ## Future features
 
-- **Doors and windows** on walls (openings shown on the plan, not affecting areas).
-- **Symbol library**: stairs, fixtures, overhead doors, north arrow styles,
-  vehicles, placed and scaled on the plan.
+- **DISTO laser input**: a Leica DISTO over Web Bluetooth in Edge/Chrome filling
+  the wall length as you measure.

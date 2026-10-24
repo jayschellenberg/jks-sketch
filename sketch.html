@@ -100,6 +100,13 @@
   #lib td input[data-f=label] { min-width: 170px; }
   #lib td input[type=number] { width: 64px; }
   #fence { fill: rgba(37,99,235,.08); stroke: #2563eb; stroke-dasharray: 4 3; }
+  #symGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; }
+  #symGrid button { padding: 2px; height: 42px; display: flex; align-items: center; justify-content: center; }
+  #symGrid svg { width: 34px; height: 34px; }
+  #sOpenings { margin-top: 8px; }
+  #sOpenings .orow { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; padding: 3px 0; border-top: 1px solid #eee; font-size: 12px; }
+  #sOpenings select, #sOpenings input[type=number] { font-size: 12px; padding: 1px 2px; }
+  #sOpenings input[type=number] { width: 54px; }
   #printArea { display: none; }
   @media print {
     body { display: block; background: #fff; }
@@ -121,6 +128,8 @@
     <button id="tDraw" class="on" title="Draw: click sets the start point, typed vectors draw the walls">Draw</button>
     <button id="tSelect" title="Select: click an area to edit; drag to move it">Select</button>
     <button id="tLabel" title="Label: click to place free text">Label</button>
+    <button id="tOpening" title="Door / window: click a wall to place the opening chosen in the panel">Door/Window</button>
+    <button id="tSymbol" title="Symbol: click to place the symbol chosen in the panel">Symbol</button>
   </div>
   <div class="grp">
     <button id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
@@ -182,6 +191,12 @@
   <div class="row"><label for="snap">Grid snap</label><input id="snap" type="number" step="0.1" min="0" value="1"></div>
   <div class="row"><label for="nLabel">Label text</label><input id="nLabel" type="text" list="labelList" placeholder="for the Label tool, e.g. Office"></div>
 
+  <h3>Doors, windows, symbols</h3>
+  <div class="row"><label for="oKind">Opening</label><span style="display:flex;gap:4px"><select id="oKind" style="flex:1"></select>
+    <input id="oWidth" type="number" step="0.5" min="0.1" title="Width" style="width:64px"></span></div>
+  <div class="hint">Door/Window tool: click a wall to place it.</div>
+  <div id="symGrid"></div>
+
   <h3>Selected</h3>
   <div id="selNone" class="hint">Nothing selected. Use the Select tool, or click a row in the table below.</div>
   <div id="selArea" hidden>
@@ -197,6 +212,7 @@
     <div class="row"><label>Size</label><span id="sSize"></span></div>
     <label for="sVec" class="hint">Vectors from the first corner — edit a dimension and Apply:</label>
     <textarea id="sVec" spellcheck="false"></textarea>
+    <div id="sOpenings"></div>
     <div class="btns">
       <button id="sApply">Apply vectors</button>
       <button id="sRot" title="Rotate 90° counter-clockwise">Rotate 90°</button>
@@ -210,6 +226,13 @@
     <div class="row"><label for="lText">Text</label><input id="lText" type="text" list="labelList"></div>
     <div class="row"><label for="lSize">Size (px)</label><input id="lSize" type="number" min="6" max="48" value="12"></div>
     <div class="btns"><button id="lDel">Delete label</button></div>
+  </div>
+  <div id="selSymbol" hidden>
+    <div class="row"><label for="yType">Symbol</label><select id="yType"></select></div>
+    <div class="row"><label for="yRot">Rotation °</label><span style="display:flex;gap:4px"><input id="yRot" type="number" step="5" style="width:70px">
+      <button id="yRotL" title="Turn 90° counter-clockwise">⟲ 90</button><button id="yRotR" title="Turn 90° clockwise">⟳ 90</button></span></div>
+    <div class="row"><label for="ySize">Size %</label><input id="ySize" type="number" min="10" max="1000" step="10"></div>
+    <div class="btns"><button id="yDel">Delete symbol</button></div>
   </div>
 
   <h3>Areas</h3>
@@ -258,6 +281,12 @@
     <tr><td>Select tool</td><td>Click to select; <b>Shift+click</b> adds; drag on empty space draws a fence around what to select. Click a dimension to hide it (or show it again).</td></tr>
     <tr><td>Mouse wheel / right-drag</td><td>Zoom / pan. In Draw mode you can also click out corners; hold Shift to keep a wall square.</td></tr>
   </table>
+  <h3>Doors, windows, symbols</h3>
+  <p>Pick a kind and width under <i>Doors, windows, symbols</i>, then with the <b>Door/Window</b> tool click a wall: the opening
+  is centred where you click (snapped to the grid). Select the area to edit it: kind, wall, centre distance from the wall's first
+  corner, width, swing <b>out</b> instead of into the room, and <b>⇄</b> to hinge at the other jamb. Openings move, rotate and
+  mirror with their area and never change an area. Click a symbol in the palette, then click the plan to place it (keep clicking
+  for more). Symbols are drawn at real size; select one to rotate it (⟲ ⟳ or any angle) or resize it.</p>
   <h3>Levels, library, labels</h3>
   <p><b>Show</b> picks one level: the others are hidden, new areas go on that level, and SVG/PNG/Print export just that level.
   <b>Library…</b> edits the area categories (code, label, counts toward building area, default factor, fill). <b>Label</b> chooses
@@ -364,7 +393,7 @@ function emptySketch() {
     format: "jks-sketch", version: 1, units: "ft",
     info: { title: "Layout of Subject Improvements", address: "", file: "", preparer: "",
             date: new Date().toISOString().slice(0, 10) },
-    areas: [], labels: [], nextId: 1,
+    areas: [], labels: [], symbols: [], nextId: 1,
     // What an area's label shows on the plan (Apex's auto-post options).
     show: { code: false, name: true, area: true },
   };
@@ -377,7 +406,8 @@ let pen = [0, 0];           // where a typed area starts when nothing was clicke
 let sel = null;             // { kind: "area"|"label", id } — the one the side panel edits
 let picks = [];             // everything selected (Shift+click, fence); includes sel
 let viewLevel = "";         // "" = all levels; otherwise only that level is shown, edited and exported
-let clip = null;            // copied areas and labels
+let clip = null;            // copied areas, labels and symbols
+let curSym = "stairs";      // the symbol the Symbol tool places
 let tool = "draw";
 let hover = null;           // snapped world point under the cursor
 let ghost = [];             // preview points from the half-typed command
@@ -953,7 +983,7 @@ function redo() {
 }
 function afterLoad() {
   setCats(S.cats || defaultCats());
-  picks = picks.filter(p => (p.kind === "area" ? S.areas : S.labels).some(x => x.id === p.id));
+  picks = picks.filter(p => listOf(p.kind).some(x => x.id === p.id));
   if (sel && !findSel()) sel = picks[0] || null;
   syncInfoFields(); commit();
 }
@@ -965,7 +995,7 @@ function commit() {
 // ---------------------------------------------------------------- selection
 function findSel() {
   if (!sel) return null;
-  const list = sel.kind === "area" ? S.areas : S.labels;
+  const list = listOf(sel.kind);
   return list.find(x => x.id === sel.id) || null;
 }
 function setSel(s) { sel = s; picks = s ? [s] : []; }
@@ -976,15 +1006,16 @@ function togglePick(s) {
   sel = picks.length === 1 ? picks[0] : picks.length ? sel && isPicked(sel.kind, sel.id) ? sel : picks[0] : null;
 }
 function pickedItems() {
-  return picks.map(p => (p.kind === "area" ? S.areas : S.labels).find(x => x.id === p.id)).filter(Boolean)
-    .map(it => ({ it, kind: S.areas.includes(it) ? "area" : "label" }));
+  return picks.map(p => ({ it: listOf(p.kind).find(x => x.id === p.id), kind: p.kind })).filter(x => x.it);
 }
+function listOf(kind) { return kind === "area" ? S.areas : kind === "symbol" ? S.symbols : S.labels; }
 // Levels: with a level chosen in "Show", other levels' areas and labels are
 // hidden from the canvas, from snapping and tracing, and from the export.
 // Site areas and anything with no level always show.
 const visible = x => !viewLevel || !x.level || x.level === viewLevel || x.category === "site";
 const visAreas = () => S.areas.filter(visible);
 const visLabels = () => S.labels.filter(visible);
+const visSymbols = () => S.symbols.filter(visible);
 function levelsInUse() {
   return [...new Set(S.areas.filter(a => a.category !== "site").map(a => (a.level || "").trim()).filter(Boolean))];
 }
@@ -999,6 +1030,7 @@ function hitTest(w) {
         return { kind: "dim", id: a.id, wall: d.i };
     }
   }
+  for (const s of visSymbols().reverse()) if (symHit(s, w)) return { kind: "symbol", id: s.id };
   for (const l of visLabels().reverse()) {
     const hw = (l.text.length * (l.size || 12) * 0.3) / view.zoom, hh = (l.size || 12) * 0.6 / view.zoom;
     if (Math.abs(w[0] - l.x) < hw && Math.abs(w[1] - l.y) < hh) return { kind: "label", id: l.id };
@@ -1034,7 +1066,7 @@ function H() { return svg.clientHeight || 600; }
 function w2s(v, Wd, Ht, x, y) { return [(x - v.cx) * v.zoom + Wd / 2, (v.cy - y) * v.zoom + Ht / 2]; }
 function s2w(px, py) { return [(px - W() / 2) / view.zoom + view.cx, view.cy - (py - H() / 2) / view.zoom]; }
 function allPoints(withUnderlay) {
-  const pts = visAreas().flatMap(outline).concat(visLabels().map(l => [l.x, l.y]));
+  const pts = visAreas().flatMap(outline).concat(visLabels().map(l => [l.x, l.y]), visSymbols().flatMap(symCorners));
   if (draw) pts.push(...outline(draw));
   if (withUnderlay && underlay) {
     pts.push([underlay.x, underlay.y], [underlay.x + underlay.w * underlay.scale, underlay.y - underlay.h * underlay.scale]);
@@ -1088,6 +1120,9 @@ function scene(v, Wd, Ht, o) {
   const order = visAreas().sort((a, b) => (b.category === "site") - (a.category === "site"));
   o.groups = groupsOf();
   for (const a of order) out.push(areaSvg(a, T, o, !o.noSel && isPicked("area", a.id)));
+  // Openings after every area, so a neighbour's wall drawn later can't close the gap.
+  for (const a of order) for (const op of a.openings || []) out.push(openingSvg(a, op, T, !o.noSel && isPicked("area", a.id)));
+  for (const s of visSymbols()) out.push(symbolSvg(s, T, v.zoom, !o.noSel && isPicked("symbol", s.id)));
   for (const l of visLabels()) {
     const [sx, sy] = T(l.x, l.y), isSel = !o.noSel && isPicked("label", l.id);
     out.push(`<text x="${sx}" y="${sy}" font-size="${l.size || 12}" text-anchor="middle" dominant-baseline="middle" ` +
@@ -1202,6 +1237,153 @@ function areaSvg(a, T, o, isSel) {
   if (bottom) out.push(`<text x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}" ${F} ${bottom[1]}>${esc(bottom[0])}</text>`);
   return out.join("");
 }
+// ---------------------------------------------------------------- doors, windows and openings
+// An opening sits on one straight wall of an area: a.openings = [{ kind, wall,
+// at, width, out, hingeEnd }], "at" being the distance from the wall's first
+// corner to the opening's middle. It moves, turns and mirrors with its area and
+// never changes an area. A door swings into the room unless "out"; its hinge is
+// at the jamb nearer the wall's first corner unless "hingeEnd".
+const OPENINGS = {
+  door:     { label: "Door",          ft: 3 },
+  double:   { label: "Double door",   ft: 6 },
+  window:   { label: "Window",        ft: 4 },
+  overhead: { label: "Overhead door", ft: 12 },
+  opening:  { label: "Opening",       ft: 4 },
+};
+const openingDefault = kind => S.units === "m" ? Math.round(OPENINGS[kind].ft * FT_TO_M * 10) / 10 : OPENINGS[kind].ft;
+function openingGeom(a, o) {
+  const p = a.points, n = p.length;
+  if (o.wall >= (a.closed ? n : n - 1) || riseAt(a, o.wall)) return null;
+  const A = p[o.wall], B = p[(o.wall + 1) % n], L = dist(A, B), w = Math.min(o.width, L);
+  if (L < EPS) return null;
+  const at = Math.max(w / 2, Math.min(L - w / 2, o.at)), u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L];
+  const inside = isCalc(a) && signedAreaOf(a) < 0 ? -1 : 1, s = inside * (o.out ? -1 : 1);
+  const nrm = [-u[1] * s, u[0] * s];   // the side a door swings to
+  const along = d => [A[0] + u[0] * d, A[1] + u[1] * d];
+  return { u, nrm, w, p0: along(at - w / 2), p1: along(at + w / 2) };
+}
+// Quarter-circle swing from the open leaf's tip to the far jamb, as points.
+function swingArc(H, tip, F) {
+  const a0 = Math.atan2(tip[1] - H[1], tip[0] - H[0]), r = dist(H, tip);
+  let d = Math.atan2(F[1] - H[1], F[0] - H[0]) - a0;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return Array.from({ length: 13 }, (_, j) => [H[0] + r * Math.cos(a0 + d * j / 12), H[1] + r * Math.sin(a0 + d * j / 12)]);
+}
+function openingSvg(a, o, T, isSel) {
+  const g = openingGeom(a, o);
+  if (!g) return "";
+  const ink = isSel ? "#2563eb" : "#111827", P = q => T(q[0], q[1]).map(v => v.toFixed(2)).join(" ");
+  const [x0, y0] = T(...g.p0), [x1, y1] = T(...g.p1), sl = Math.hypot(x1 - x0, y1 - y0) || 1;
+  const tx = (x1 - x0) / sl, ty = (y1 - y0) / sl, nx = -ty, ny = tx;   // screen along / across the wall
+  const off = (k, e) => `M${(x0 + nx * k).toFixed(2)} ${(y0 + ny * k).toFixed(2)}L${(x1 + nx * k).toFixed(2)} ${(y1 + ny * k).toFixed(2)}`;
+  const jambs = [[x0, y0], [x1, y1]].map(([x, y]) => `M${(x - nx * 4.5).toFixed(2)} ${(y - ny * 4.5).toFixed(2)}L${(x + nx * 4.5).toFixed(2)} ${(y + ny * 4.5).toFixed(2)}`).join("");
+  const out = [`<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="#fff" stroke-width="5"/>`,
+    `<path d="${jambs}" stroke="${ink}" stroke-width="1.2" fill="none"/>`];
+  const leaf = (H, F, len) => {
+    const tip = [H[0] + g.nrm[0] * len, H[1] + g.nrm[1] * len];
+    return `<path d="M${P(H)}L${P(tip)}" stroke="${ink}" stroke-width="1.2" fill="none"/>` +
+      `<path d="M${swingArc(H, tip, F).map(P).join("L")}" stroke="${ink}" stroke-width="0.7" fill="none"/>`;
+  };
+  if (o.kind === "door") out.push(o.hingeEnd ? leaf(g.p1, g.p0, g.w) : leaf(g.p0, g.p1, g.w));
+  else if (o.kind === "double") {
+    const M = [(g.p0[0] + g.p1[0]) / 2, (g.p0[1] + g.p1[1]) / 2];
+    out.push(leaf(g.p0, M, g.w / 2), leaf(g.p1, M, g.w / 2));
+  } else if (o.kind === "window") {
+    // Both wall faces plus the glass line between them.
+    out[0] = `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="#fff" stroke-width="8"/>`;
+    out.push(`<path d="${off(-3.5)}${off(3.5)}" stroke="${ink}" stroke-width="1" fill="none"/><path d="${off(0)}" stroke="${ink}" stroke-width="0.6" fill="none"/>`);
+  }
+  else if (o.kind === "overhead") {
+    // Dashed line just inside the room (the door's swing side), the usual overhead-door mark.
+    const [ix, iy] = T(g.p0[0] + g.nrm[0], g.p0[1] + g.nrm[1]), k = (Math.sign((ix - x0) * nx + (iy - y0) * ny) || 1) * 5;
+    out.push(`<path d="${off(k)}" stroke="${ink}" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
+  }
+  return out.join("");
+}
+// The nearest straight wall to a point (world), within tol: { a, wall, at, L }.
+function nearestWall(w, tol) {
+  let best = null;
+  for (const a of visAreas()) {
+    if (a.category === "site") continue;
+    const p = a.points, n = p.length;
+    for (let i = 0; i < (a.closed ? n : n - 1); i++) {
+      if (riseAt(a, i)) continue;
+      const A = p[i], B = p[(i + 1) % n], d = distToSeg(w, A, B), L = dist(A, B);
+      if (d < tol && L > EPS && (!best || d < best.d)) {
+        const t = ((w[0] - A[0]) * (B[0] - A[0]) + (w[1] - A[1]) * (B[1] - A[1])) / (L * L);
+        best = { d, a, wall: i, at: Math.max(0, Math.min(1, t)) * L, L };
+      }
+    }
+  }
+  return best;
+}
+function placeOpening(w) {
+  const hit = nearestWall(w, 10 / view.zoom);
+  if (!hit) return status("Click on a straight wall to place the opening.", "bad");
+  const kind = $("oKind").value, width = parseFloat($("oWidth").value) || openingDefault(kind);
+  if (width > hit.L + EPS) return status(`That wall is ${fmtLen(hit.L)}: too short for a ${fmtLen(width)} ${OPENINGS[kind].label.toLowerCase()}.`, "bad");
+  const g = parseFloat($("snap").value) || 0;
+  let at = g > 0 ? Math.round(hit.at / g) * g : hit.at;
+  at = round4(Math.max(width / 2, Math.min(hit.L - width / 2, at)));
+  pushHistory();
+  (hit.a.openings = hit.a.openings || []).push({ kind, wall: hit.wall, at, width, out: false, hingeEnd: false });
+  setSel({ kind: "area", id: hit.a.id }); commit();
+  status(`${OPENINGS[kind].label} ${fmtLen(width)} on ${hit.a.name}, centre ${fmtLen(at)} from the corner. Edit it under Selected.`, "ok");
+}
+
+// ---------------------------------------------------------------- symbols
+// Drawn at real size in feet (local x right, y down, origin at the middle) so
+// they scale with the plan: s = { type, x, y, rot (degrees counter-clockwise),
+// size (a multiplier), level }. Strokes stay one pixel at any zoom.
+const SV = ' vector-effect="non-scaling-stroke"';
+const sR = (x, y, w, h, extra = "") => `<rect x="${x}" y="${y}" width="${w}" height="${h}"${SV}${extra}/>`;
+const sL = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"${SV}/>`;
+const sC = (cx, cy, r) => `<circle cx="${cx}" cy="${cy}" r="${r}"${SV}/>`;
+const sE = (cx, cy, rx, ry) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"${SV}/>`;
+const sP = d => `<path d="${d}"${SV}/>`;
+const sT = (x, y, t, fs) => `<text x="${x}" y="${y}" font-size="${fs}" text-anchor="middle" dominant-baseline="central" fill="#374151" stroke="none" font-family="Arial, Helvetica, sans-serif">${t}</text>`;
+const SYMBOLS = [
+  { key: "stairs", label: "Stairs", w: 4, h: 10, svg: sR(-2, -5, 4, 10) + [1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => sL(-2, -5 + i, 2, -5 + i)).join("") + sL(0, 4.3, 0, -4.3) + sP("M-0.7 -3.2L0 -4.3L0.7 -3.2") },
+  { key: "toilet", label: "Toilet", w: 1.7, h: 2.4, svg: sR(-0.85, -1.2, 1.7, 0.6) + sE(0, 0.45, 0.65, 0.75) },
+  { key: "sink", label: "Sink / vanity", w: 2, h: 1.75, svg: sR(-1, -0.875, 2, 1.75) + sE(0, 0.1, 0.6, 0.45) },
+  { key: "tub", label: "Bathtub", w: 5, h: 2.5, svg: sR(-2.5, -1.25, 5, 2.5) + sR(-2.2, -1, 4.4, 2, ' rx="0.8"') + sC(-1.8, 0, 0.12) },
+  { key: "shower", label: "Shower", w: 3, h: 3, svg: sR(-1.5, -1.5, 3, 3) + sL(-1.5, -1.5, 1.5, 1.5) + sL(1.5, -1.5, -1.5, 1.5) + sC(0, 0, 0.2) },
+  { key: "range", label: "Range", w: 2.5, h: 2.2, svg: sR(-1.25, -1.1, 2.5, 2.2) + [[-0.55, -0.45], [0.55, -0.45], [-0.55, 0.45], [0.55, 0.45]].map(([x, y]) => sC(x, y, 0.33)).join("") },
+  { key: "fridge", label: "Refrigerator", w: 2.8, h: 2.5, svg: sR(-1.4, -1.25, 2.8, 2.5) + sT(0, 0, "REF", 0.8) },
+  { key: "washdry", label: "Washer / dryer", w: 5, h: 2.5, svg: sR(-2.5, -1.25, 2.5, 2.5) + sR(0, -1.25, 2.5, 2.5) + sT(-1.25, 0, "W", 1) + sT(1.25, 0, "D", 1) },
+  { key: "waterheater", label: "Water heater", w: 2, h: 2, svg: sC(0, 0, 1) + sT(0, 0, "WH", 0.7) },
+  { key: "furnace", label: "Furnace", w: 2.5, h: 2.5, svg: sR(-1.25, -1.25, 2.5, 2.5) + sT(0, 0, "F", 1) },
+  { key: "panel", label: "Electrical panel", w: 1.6, h: 0.6, svg: sR(-0.8, -0.3, 1.6, 0.6, ' fill="#374151"') },
+  { key: "fireplace", label: "Fireplace", w: 5, h: 2, svg: sR(-2.5, -1, 5, 2) + sP("M-1.5 1L-1 -0.4L1 -0.4L1.5 1") },
+  { key: "column", label: "Column", w: 1, h: 1, svg: sR(-0.5, -0.5, 1, 1, ' fill="#374151"') },
+  { key: "car", label: "Car", w: 6, h: 15, svg: sR(-3, -7.5, 6, 15, ' rx="1.2"') + sP("M-2.6 -3.5Q0 -4.6 2.6 -3.5") + sP("M-2.6 4.5Q0 5.3 2.6 4.5") },
+  { key: "dock", label: "Dock leveller", w: 7, h: 8, svg: sR(-3.5, -4, 7, 8) + sL(-3.5, -4, 3.5, 4) + sL(3.5, -4, -3.5, 4) },
+  { key: "ramp", label: "Ramp", w: 4, h: 12, svg: sR(-2, -6, 4, 12) + sL(0, 5, 0, -5) + sP("M-0.8 -3.8L0 -5L0.8 -3.8") },
+  { key: "tree", label: "Tree", w: 12, h: 12, svg: sC(0, 0, 6) + sC(0, 0, 0.5) },
+  { key: "arrow", label: "Arrow", w: 2, h: 8, svg: sL(0, 4, 0, -4) + sP("M-1 -2.5L0 -4L1 -2.5") },
+];
+const SYM = Object.fromEntries(SYMBOLS.map(s => [s.key, s]));
+const symScale = s => (S.units === "m" ? FT_TO_M : 1) * (s.size || 1);   // world units per symbol foot
+function symbolSvg(s, T, zoom, isSel) {
+  const d = SYM[s.type];
+  if (!d) return "";
+  const [sx, sy] = T(s.x, s.y);
+  return `<g transform="translate(${sx.toFixed(2)} ${sy.toFixed(2)}) rotate(${-(s.rot || 0)}) scale(${zoom * symScale(s)})" ` +
+    `fill="none" stroke="${isSel ? "#2563eb" : "#374151"}" stroke-width="${isSel ? 1.8 : 1}">${d.svg}</g>`;
+}
+// The symbol's own frame: is world point w within its box?
+function symHit(s, w) {
+  const d = SYM[s.type], k = symScale(s), r = (s.rot || 0) * Math.PI / 180;
+  if (!d) return false;
+  const vx = w[0] - s.x, vy = w[1] - s.y, a = vx * Math.cos(r) + vy * Math.sin(r), b = -vx * Math.sin(r) + vy * Math.cos(r);
+  return Math.abs(a / k) <= d.w / 2 + 0.3 && Math.abs(b / k) <= d.h / 2 + 0.3;
+}
+function symCorners(s) {
+  const d = SYM[s.type] || { w: 1, h: 1 }, k = symScale(s), r = Math.hypot(d.w, d.h) / 2 * k;
+  return [[s.x - r, s.y - r], [s.x + r, s.y + r]];
+}
+
 function liveSvg(T) {
   const out = [];
   if (draw) {
@@ -1282,7 +1464,13 @@ function renderPanel() {
   $("selNone").hidden = !!it;
   $("selArea").hidden = !(it && sel.kind === "area");
   $("selLabel").hidden = !(it && sel.kind === "label");
-  if (it && sel.kind === "area") {
+  $("selSymbol").hidden = !(it && sel.kind === "symbol");
+  if (it && sel.kind === "symbol") {
+    $("yType").value = it.type;
+    if (document.activeElement !== $("yRot")) $("yRot").value = fmtNum(it.rot || 0, 2);
+    if (document.activeElement !== $("ySize")) $("ySize").value = Math.round((it.size || 1) * 100);
+  } else if (it && sel.kind === "area") {
+    renderOpenings(it);
     if (document.activeElement !== $("sName")) $("sName").value = it.name;
     if (document.activeElement !== $("sBuilding")) $("sBuilding").value = it.building;
     if (document.activeElement !== $("sLevel")) $("sLevel").value = it.level;
@@ -1330,6 +1518,27 @@ function renderPanel() {
   if (!S.areas.length) h = `<div class="hint">No areas yet. Click a corner on the canvas, then type e.g. <code>R40 D28 L40 C</code>.</div>`;
   $("summary").innerHTML = h;
   renderCalcs();
+}
+
+// The selected area's doors and windows, editable: kind, which wall (numbered
+// as in the vectors), centre distance from that wall's first corner, width,
+// swing side and hinge end.
+function renderOpenings(a) {
+  const box = $("sOpenings"), ops = a.openings || [];
+  if (box.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
+  if (!ops.length) { box.innerHTML = `<div class="hint">No doors or windows. Use the Door/Window tool and click a wall.</div>`; return; }
+  const p = a.points, n = p.length, walls = [];
+  for (let i = 0; i < (a.closed ? n : n - 1); i++)
+    if (!riseAt(a, i)) walls.push(`<option value="${i}">wall ${i + 1}: ${esc(segToken(p[(i + 1) % n][0] - p[i][0], p[(i + 1) % n][1] - p[i][1]).replace(/(\.\d{2})\d+/g, "$1"))}</option>`);
+  box.innerHTML = `<div class="hint">Doors and windows: centre measured from the wall's first corner.</div>` + ops.map((o, k) =>
+    `<div class="orow" data-k="${k}">` +
+    `<select data-f="kind">${Object.entries(OPENINGS).map(([v, d]) => `<option value="${v}"${v === o.kind ? " selected" : ""}>${d.label}</option>`).join("")}</select>` +
+    `<select data-f="wall">${walls.join("").replace(`value="${o.wall}"`, `value="${o.wall}" selected`)}</select>` +
+    `at <input type="number" data-f="at" step="0.5" min="0" value="${fmtNum(o.at, 3)}" title="Centre, from the wall's first corner">` +
+    `w <input type="number" data-f="width" step="0.5" min="0.1" value="${fmtNum(o.width, 3)}" title="Width">` +
+    (o.kind === "door" || o.kind === "double" || o.kind === "overhead" ? `<label title="Swing to the other side of the wall"><input type="checkbox" data-f="out"${o.out ? " checked" : ""}> out</label>` : "") +
+    (o.kind === "door" ? `<button data-act="hinge" title="Hinge at the other jamb">⇄</button>` : "") +
+    `<button data-act="del" title="Remove">✕</button></div>`).join("");
 }
 
 // ---------------------------------------------------------------- area calculations
@@ -1507,6 +1716,7 @@ function areasJson() {
       combined_as: groupOf(a, groups) ? a.group.trim() : null,
       base_area: both(areaOf(a)), factor: factorOf(a), negative: !!a.negative,
       area: both(netAreaOf(a)),
+      openings: (a.openings || []).map(o => ({ kind: o.kind, wall: o.wall + 1, width: r1(o.width) })),
       perimeter: S.units === "m" ? { m: r1(perimeterOf(a)) } : { ft: r1(perimeterOf(a)) },
     })),
     buildings: t.buildings.map(b => ({
@@ -1546,8 +1756,12 @@ function status(msg, cls) { const s = $("status"); s.textContent = msg || ""; s.
 // ---------------------------------------------------------------- tools
 function setTool(t) {
   tool = t; calib = null;
-  for (const [id, k] of [["tDraw", "draw"], ["tSelect", "select"], ["tLabel", "label"], ["tCalib", "calib"], ["tMoveU", "moveU"]])
+  for (const [id, k] of [["tDraw", "draw"], ["tSelect", "select"], ["tLabel", "label"], ["tOpening", "opening"], ["tSymbol", "symbol"],
+    ["tCalib", "calib"], ["tMoveU", "moveU"]])
     $(id).classList.toggle("on", k === t);
+  for (const b of document.querySelectorAll("#symGrid button")) b.classList.toggle("on", t === "symbol" && b.dataset.sym === curSym);
+  if (t === "opening") status(`Click a wall to place a ${OPENINGS[$("oKind").value].label.toLowerCase()} ${fmtLen(parseFloat($("oWidth").value) || 0)} wide.`);
+  if (t === "symbol") status(`Click to place: ${SYM[curSym].label}. Rotate and resize it under Selected.`);
   svg.classList.toggle("select", t === "select" || t === "moveU");
   if (t === "calib") status(underlay ? "Calibrate: click one end of a wall of known length on the image." : "Load an underlay image first.", underlay ? "" : "bad");
   render();
@@ -1648,7 +1862,7 @@ document.addEventListener("keydown", e => {
   if (mod && key === "v") { e.preventDefault(); return pasteClip(); }
   if (mod && key === "a") {
     e.preventDefault();
-    picks = visAreas().map(a => ({ kind: "area", id: a.id })).concat(visLabels().map(l => ({ kind: "label", id: l.id })));
+    picks = visAreas().map(a => ({ kind: "area", id: a.id })).concat(visLabels().map(l => ({ kind: "label", id: l.id })), visSymbols().map(s => ({ kind: "symbol", id: s.id })));
     sel = picks[0] || null; renderPanel(); return render();
   }
   const items = pickedItems();
@@ -1668,7 +1882,7 @@ function deleteSel() {
   const items = pickedItems(); if (!items.length) return;
   pushHistory();
   const gone = new Set(items.map(x => x.it));
-  S.areas = S.areas.filter(a => !gone.has(a)); S.labels = S.labels.filter(l => !gone.has(l));
+  S.areas = S.areas.filter(a => !gone.has(a)); S.labels = S.labels.filter(l => !gone.has(l)); S.symbols = S.symbols.filter(s => !gone.has(s));
   setSel(null); commit();
 }
 
@@ -1731,6 +1945,13 @@ svg.addEventListener("mousedown", e => {
       const p = snapPoint(w).pt, l = { id: S.nextId++, x: p[0], y: p[1], text, size: 12, level: viewLevel || undefined };
       S.labels.push(l); setSel({ kind: "label", id: l.id }); rememberLabel(text); commit();
     }
+  } else if (tool === "opening") {
+    placeOpening(w);
+  } else if (tool === "symbol") {
+    pushHistory();
+    const p = snapPoint(w).pt, s = { id: S.nextId++, type: curSym, x: p[0], y: p[1], rot: 0, size: 1, level: viewLevel || undefined };
+    S.symbols.push(s); setSel({ kind: "symbol", id: s.id }); commit();
+    status(`${SYM[curSym].label} placed. Click again for another; rotate and resize under Selected.`, "ok");
   } else if (tool === "calib") {
     if (!underlay) return status("Load an underlay image first.", "bad");
     if (!calib) { calib = w; status("Now click the other end of that wall."); render(); }
@@ -1791,6 +2012,7 @@ window.addEventListener("mouseup", () => {
     if (dist(drag.w0, drag.w1) * view.zoom > 4) {
       for (const a of visAreas()) if (outline(a).every(inside) && !isPicked("area", a.id)) picks.push({ kind: "area", id: a.id });
       for (const l of visLabels()) if (inside([l.x, l.y]) && !isPicked("label", l.id)) picks.push({ kind: "label", id: l.id });
+      for (const s of visSymbols()) if (inside([s.x, s.y]) && !isPicked("symbol", s.id)) picks.push({ kind: "symbol", id: s.id });
       sel = sel && isPicked(sel.kind, sel.id) ? sel : picks[0] || null;
       if (picks.length > 1) status(`${picks.length} items selected: drag, arrow keys, Delete, Ctrl+C, Rotate… act on all of them.`);
     }
@@ -1848,8 +2070,10 @@ $("sApply").addEventListener("click", () => {
   rise.length = closed ? pts.length : pts.length - 1;
   const sg = closed ? outSign(pts) : 1;
   pushHistory();
-  // Hidden dimensions follow their wall while the wall count is unchanged.
+  // Hidden dimensions follow their wall while the wall count is unchanged;
+  // doors and windows stay on their wall number while that wall still exists.
   if (pts.length !== a.points.length || closed !== a.closed) a.hideDims = [];
+  if (a.openings) a.openings = a.openings.filter(o => o.wall < (closed ? pts.length : pts.length - 1));
   a.points = pts; a.closed = closed; a.rise = Array.from(rise, v => (v || 0) * sg);
   $("sVec").blur(); commit();
   status("Applied. " + (closed ? closingNote(pts) : ""), "ok");
@@ -1867,6 +2091,38 @@ $("sDup").addEventListener("click", () => {
 });
 $("sDel").addEventListener("click", deleteSel);
 $("lDel").addEventListener("click", deleteSel);
+$("yDel").addEventListener("click", deleteSel);
+onSelEdit("yType", (s, el) => { s.type = el.value; delete el.dataset.dirty; }, "change");
+onSelEdit("yRot", (s, el) => { const v = parseFloat(el.value); if (isFinite(v)) s.rot = v; });
+onSelEdit("ySize", (s, el) => { const v = parseFloat(el.value); if (v >= 10) s.size = v / 100; });
+for (const [id, d] of [["yRotL", 90], ["yRotR", -90]]) $(id).onclick = () => {
+  const s = findSel(); if (!s || sel.kind !== "symbol") return;
+  pushHistory(); s.rot = (((s.rot || 0) + d) % 360 + 360) % 360; commit();
+};
+// Door and window rows under Selected.
+$("sOpenings").addEventListener("change", e => {
+  const a = findSel(), row = e.target.closest(".orow"), f = e.target.dataset.f;
+  if (!a || !row || !f) return;
+  const o = a.openings[+row.dataset.k];
+  pushHistory();
+  if (f === "kind") { o.kind = e.target.value; }
+  else if (f === "wall") { o.wall = +e.target.value; }
+  else if (f === "out") { o.out = e.target.checked; }
+  else { const v = parseFloat(e.target.value); if (v > 0 || (f === "at" && v >= 0)) o[f] = round4(v); }
+  const g = openingGeom(a, o);   // keep the stored centre on the wall
+  if (g) { const L = dist(a.points[o.wall], a.points[(o.wall + 1) % a.points.length]); o.at = round4(Math.max(Math.min(o.width, L) / 2, Math.min(L - Math.min(o.width, L) / 2, o.at))); }
+  e.target.blur(); commit();
+});
+$("sOpenings").addEventListener("click", e => {
+  const a = findSel(), row = e.target.closest(".orow"), act = e.target.dataset.act;
+  if (!a || !row || !act) return;
+  pushHistory();
+  const k = +row.dataset.k;
+  if (act === "del") a.openings.splice(k, 1); else a.openings[k].hingeEnd = !a.openings[k].hingeEnd;
+  commit();
+});
+$("oKind").onchange = () => { $("oWidth").value = openingDefault($("oKind").value); setTool("opening"); };
+$("oWidth").onchange = () => setTool("opening");
 $("summary").addEventListener("click", e => {
   const tr = e.target.closest("tr[data-id]"); if (!tr) return;
   setSel({ kind: "area", id: +tr.dataset.id }); renderPanel(); render();
@@ -1892,6 +2148,8 @@ for (const k of ["title", "address", "file", "preparer", "date"]) {
 $("tDraw").onclick = () => setTool("draw");
 $("tSelect").onclick = () => { if (draw) { draw = null; } setTool("select"); };
 $("tLabel").onclick = () => setTool("label");
+$("tOpening").onclick = () => setTool("opening");
+$("tSymbol").onclick = () => setTool("symbol");
 $("tCalib").onclick = () => setTool("calib");
 $("tMoveU").onclick = () => setTool("moveU");
 $("bUndo").onclick = undo; $("bRedo").onclick = redo; $("bFit").onclick = fit;
@@ -1908,8 +2166,11 @@ $("units").onchange = () => {
   const k = to === "m" ? FT_TO_M : 1 / FT_TO_M;
   pushHistory();
   const sc = p => [round4(p[0] * k), round4(p[1] * k)];
-  for (const a of S.areas) { a.points = a.points.map(sc); a.rise = (a.rise || []).map(v => round4((v || 0) * k)); a.labelOffset = sc(a.labelOffset); }
-  for (const l of S.labels) [l.x, l.y] = sc([l.x, l.y]);
+  for (const a of S.areas) {
+    a.points = a.points.map(sc); a.rise = (a.rise || []).map(v => round4((v || 0) * k)); a.labelOffset = sc(a.labelOffset);
+    for (const o of a.openings || []) { o.at = round4(o.at * k); o.width = round4(o.width * k); }
+  }
+  for (const l of S.labels.concat(S.symbols)) [l.x, l.y] = sc([l.x, l.y]);
   if (underlay) { underlay.x *= k; underlay.y *= k; underlay.scale *= k; }
   pen = sc(pen); view.cx *= k; view.cy *= k; view.zoom /= k;
   S.units = to; $("snap").value = to === "m" ? "0.1" : "1"; $("dimDec").value = to === "m" ? "2" : "1"; $("exScale").value = "";
@@ -2009,7 +2270,7 @@ $("bRotate").onclick = () => {
   const txt = prompt("Rotate by how many degrees? (positive = counter-clockwise, e.g. 90, -12.5)", "90");
   const deg = parseFloat(txt);
   if (!isFinite(deg) || !deg) return;
-  const items = picks.length ? pickedItems() : visAreas().map(it => ({ it, kind: "area" })).concat(visLabels().map(it => ({ it, kind: "label" })));
+  const items = picks.length ? pickedItems() : visAreas().map(it => ({ it, kind: "area" })).concat(visLabels().map(it => ({ it, kind: "label" })), visSymbols().map(it => ({ it, kind: "symbol" })));
   if (!items.length) return status("Nothing to rotate.", "bad");
   const pts = items.flatMap(({ it, kind }) => kind === "area" ? it.points : [[it.x, it.y]]), b = bbox(pts);
   const c = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2], r = deg * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
@@ -2017,7 +2278,7 @@ $("bRotate").onclick = () => {
   pushHistory();
   for (const { it, kind } of items) {
     if (kind === "area") { it.points = it.points.map(rot); const o = it.labelOffset; it.labelOffset = [o[0] * cs - o[1] * sn, o[0] * sn + o[1] * cs]; }
-    else [it.x, it.y] = rot([it.x, it.y]);
+    else { [it.x, it.y] = rot([it.x, it.y]); if (kind === "symbol") it.rot = (((it.rot || 0) + deg) % 360 + 360) % 360; }
   }
   if (!picks.length && underlay) { [underlay.x, underlay.y] = rot([underlay.x, underlay.y]); underlay.rot -= deg; $("uRot").value = underlay.rot; }
   commit();
@@ -2043,12 +2304,12 @@ function pasteClip() {
   picks = [];
   for (const { kind, it } of JSON.parse(JSON.stringify(clip))) {
     it.id = S.nextId++;
-    if (toLevel && (kind === "label" || it.category !== "site")) it.level = viewLevel;
+    if (toLevel && (kind !== "area" || it.category !== "site")) it.level = viewLevel;
     if (kind === "area") {
       it.points = it.points.map(p => [round4(p[0] + off), p[1]]);
       if (!toLevel) it.name += " (copy)";
       S.areas.push(it);
-    } else { it.x = round4(it.x + off); S.labels.push(it); }
+    } else { it.x = round4(it.x + off); listOf(kind).push(it); }
     picks.push({ kind, id: it.id });
   }
   sel = picks[0];
@@ -2125,6 +2386,18 @@ try {
 } catch (e) { /* no autosave available */ }
 setCats(S.cats || defaultCats());
 fillLabelList();
+$("oKind").innerHTML = Object.entries(OPENINGS).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join("");
+$("oWidth").value = openingDefault("door");
+$("yType").innerHTML = SYMBOLS.map(s => `<option value="${s.key}">${s.label}</option>`).join("");
+// Symbol palette: each button previews its symbol fitted to the button.
+$("symGrid").innerHTML = SYMBOLS.map(s => {
+  const m = Math.max(s.w, s.h) * 0.56;
+  return `<button data-sym="${s.key}" title="${s.label}"><svg viewBox="${-m} ${-m} ${2 * m} ${2 * m}" fill="none" stroke="#374151">${s.svg}</svg></button>`;
+}).join("");
+$("symGrid").addEventListener("click", e => {
+  const b = e.target.closest("button[data-sym]"); if (!b) return;
+  curSym = b.dataset.sym; setTool("symbol");
+});
 syncInfoFields(); renderPanel();
 requestAnimationFrame(() => { S.areas.length ? fit() : render(); cmd.focus(); });
 status(S.areas.length ? "Restored the last session's sketch (autosave)." : "Click a corner on the canvas, then type walls — e.g. R40 D28 L40 C. F1 for help.");
