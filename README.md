@@ -15,6 +15,9 @@ after the first delivery.
    Subject Improvements"), site name, address, file number, preparer, date.
    Each exported page is headed with the site name, or the address when there
    is no site name.
+   *Notes* are printed at the foot of every page, one line each. By default:
+   "Note: Placement of improvements on site is not to scale." and "For
+   illustration only." Edit them per sketch, or clear the box to leave them off.
 2. **Optional underlay.** *Image…* loads a photo or scan of the field sketch.
    *Calibrate*: click both ends of a wall whose length you know, type that length,
    and the image is scaled to match. *Move* drags it into place; the ° box rotates it.

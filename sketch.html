@@ -196,6 +196,8 @@
   <div class="row"><label for="iFile">File no.</label><input id="iFile" type="text"></div>
   <div class="row"><label for="iPreparer">Prepared by</label><input id="iPreparer" type="text"></div>
   <div class="row"><label for="iDate">Date</label><input id="iDate" type="text"></div>
+  <div class="row"><label for="iNotes">Notes</label><textarea id="iNotes" rows="2" style="font-family:inherit;min-height:40px"
+    title="Printed at the foot of every page, one line each. Clear it to leave the notes off."></textarea></div>
 
   <h3>Next area</h3>
   <div class="row"><label for="nBuilding">Building</label><input id="nBuilding" type="text" value="Building 1"></div>
@@ -342,7 +344,7 @@
   finished page (10 pt by default); everything else scales up from it. Place a PNG or JPG at its true page size and its text is
   that size too; <b>dpi</b> sets the image resolution. A dimension too long for its wall at that size is shortened, or left off with a
   warning. SVG, PNG and JPG are of the page shown; <b>Print</b> (and Save as PDF) makes one sheet per page.
-  <b>areas.json</b> records every area with building, level, category and size in both sq ft and m². File all of them into the
+  The Sketch panel's <b>Notes</b> print at the foot of every page (by default the not-to-scale and for-illustration-only notes); clear them to leave them off. <b>areas.json</b> records every area with building, level, category and size in both sq ft and m². File all of them into the
   job's <code>dropzone/</code>.</p>
   <p><button id="bHelpClose">Close</button></p>
 </div>
@@ -428,11 +430,16 @@ const EPS = 1e-6;
 const AUTOSAVE_KEY = "jks-sketch-autosave-v1";
 
 // ---------------------------------------------------------------- state
+// Printed at the foot of every exported page unless the sketch clears them.
+const DEFAULT_NOTES = "Note: Placement of improvements on site is not to scale.\nFor illustration only.";
+function notesOf() {
+  return (S.info.notes === undefined ? DEFAULT_NOTES : S.info.notes).split("\n").map(t => t.trim()).filter(Boolean);
+}
 function emptySketch() {
   return {
     format: "jks-sketch", version: 1, units: "ft",
     info: { title: "Layout of Subject Improvements", site: "", address: "", file: "", preparer: "",
-            date: new Date().toISOString().slice(0, 10) },
+            date: new Date().toISOString().slice(0, 10), notes: DEFAULT_NOTES },
     // Pages: separate drawing sheets (site plan, each building, each floor…).
     // Every area, label and symbol belongs to one; totals cover all of them.
     pages: [{ id: "p1", name: "Page 1" }],
@@ -1772,6 +1779,7 @@ function renderCalcs() {
 }
 function syncInfoFields() {
   for (const k of ["title", "site", "address", "file", "preparer", "date"]) $("i" + k[0].toUpperCase() + k.slice(1)).value = S.info[k] || "";
+  if (document.activeElement !== $("iNotes")) $("iNotes").value = notesOf().join("\n");
   $("units").value = S.units;
   $("dimFmt").disabled = S.units === "m";
   const sh = S.show || { name: true, area: true };
@@ -1854,18 +1862,20 @@ function exportSvg() {
   const leftH = titleSz * 1.1 + (site ? subSz * 1.5 : 0), rightH = rightLines.length * rightSz * 1.35 + m * 1.35;
   const titleH = Math.max(leftH, rightH) + m * 0.9;
   const rowH = 1.7 * m, tableH = rows.length ? rowH * (rows.length + 1) + m * 1.2 : 0;
+  // Page notes along the foot of the page ("not to scale", "for illustration only").
+  const notes = notesOf(), footH = notes.length ? notes.length * m * 1.35 + m * 0.8 : 0;
   // The drawing: fitted into what's left of the page, or at the set scale.
   let zoom, Wout = W, Hout = Hpage, drawH;
   if (sc) {
     zoom = sc.zoom;
     Wout = Math.max(W, bw * zoom + 2 * drawPad);
-    drawH = Math.max(bh * zoom + 2 * drawPad, Hpage - titleH - tableH);
-    Hout = titleH + drawH + tableH;
+    drawH = Math.max(bh * zoom + 2 * drawPad, Hpage - titleH - tableH - footH);
+    Hout = titleH + drawH + tableH + footH;
     const wi = Wout / PT, hi = Hout / PT, paper = $("exPaper").selectedOptions[0].textContent + " " + $("exOrient").value;
     if (wi > pw + 0.01 || hi > ph + 0.01)
       exportNotes.push(`⚠ At ${sc.text.replace("Scale ", "")} the sheet is ${fmtNum(wi, 1)} × ${fmtNum(hi, 1)} in; ${paper} holds ${fmtNum(pw, 1)} × ${fmtNum(ph, 1)} in. Use a bigger scale number or paper.`);
   } else {
-    drawH = Hpage - titleH - tableH;
+    drawH = Hpage - titleH - tableH - footH;
     if (drawH < Hpage * 0.3) exportNotes.push("⚠ The area table takes most of the page, so the plan is small. Untick table, or use bigger paper.");
     zoom = Math.min((W - 2 * drawPad) / bw, Math.max(drawH - 2 * drawPad, m * 4) / bh);
   }
@@ -1901,6 +1911,7 @@ function exportSvg() {
       [r[0], r[1], r[2], r[6] || "", r[3], r[4]].forEach((c, i) => s += cell(c, i, r[5]));
     }
   }
+  notes.forEach((t, i) => s += `<text x="${pad}" y="${(Hout - footH + m * 1.2 + i * m * 1.35).toFixed(1)}" font-size="${m}" ${F} fill="#374151">${esc(t)}</text>`);
   return s + "</svg>";
 }
 function northArrow(x, y, k = 1) {
@@ -2422,6 +2433,7 @@ $("calcs").addEventListener("click", e => {
 $("cExpand").onclick = () => { for (const k of calcKeys()) calcOpen.set(k, true); renderCalcs(); };
 // As in Apex, Collapse all still shows every area's net figure; it folds only the detail.
 $("cCollapse").onclick = () => { for (const k of calcKeys()) calcOpen.set(k, !k.startsWith("a:")); renderCalcs(); };
+$("iNotes").addEventListener("change", () => { pushHistory(); S.info.notes = $("iNotes").value; commit(); });
 for (const k of ["title", "site", "address", "file", "preparer", "date"]) {
   const el = $("i" + k[0].toUpperCase() + k.slice(1));
   el.addEventListener("change", () => { pushHistory(); S.info[k] = el.value; commit(); });
