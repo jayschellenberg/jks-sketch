@@ -29,10 +29,14 @@ after the first delivery.
    to the grid. Then type the walls into the command line and press Enter.
    For an addition, start on the building, type only the new walls and finish
    with `CW` (below).
-5. **Fix**: with *Select*, click an area. Edit its name, category, the
-   "counts toward building area" box, or its **vectors** (the walls as text). Change
-   a number and press *Apply vectors*. Click a dimension to hide it (shared
-   walls); click it again to bring it back.
+5. **Fix**: with *Select*, click an area. Its corners show handles: drag one
+   to move it (Shift keeps it square), click one and press Delete to remove it,
+   double-click a wall to add a corner. Double-click a dimension and type the
+   new length: the wall stretches, and every corner beyond its far end moves
+   with it, so square buildings stay square. Or edit the **vectors** (the walls
+   as text) and press *Apply vectors*. Click a dimension once to hide it
+   (shared walls); click it again to bring it back. Name, category, "counts
+   toward building area" and the rest are under *Selected*.
 6. **Output**: *Save* (editable), *SVG*/*PNG*/*JPG*/*Print* (the plan), *areas.json* (the
    numbers). In Edge/Chrome a save dialog opens, so pick the job's `dropzone/`
    folder directly.
@@ -178,6 +182,32 @@ count. The appraiser decides, per area.
 The browser also autosaves the last sketch locally. That is a convenience, not a
 record: *Save* is the record.
 
+**Site improvements and coverage.** Paving, gravel and landscaping go in the
+*Asphalt paving*, *Concrete paving*, *Gravel* and *Landscaped* categories
+(added to older sketches' libraries automatically). They're totalled on their
+own and never count as building area. *Site coverage* = building footprint ÷
+site area, shown with the totals, in the printed table and in `areas.json`
+(`building_footprint`, `site_coverage_pct`, `site_improvements`). Each area's
+*Footprint* box says whether the ground it covers counts; it follows the
+category (on for main floors, garages, warehouses, offices…; off for upper
+floors, basements, mezzanines, decks, canopies) and can be changed per area.
+
+**Measure.** The *Measure* tool draws a free dimension line between two
+clicked points (snapping to corners; Shift keeps it square) for setbacks,
+spacing between buildings or apron depth. Label it (e.g. *Setback*) under
+*Selected*; *Flip text* puts the text on the other side. Listed in
+`areas.json` as `measurements`.
+
+**Photo markers.** The *Photo* tool: click where a photo was taken and drag
+the way the camera faced. Markers number themselves 1, 2, 3… (change a number
+under *Selected*), print at the minimum text size, and are listed with their
+compass facing in `areas.json` as `photos`.
+
+**Recover.** Besides the current sketch, the browser keeps the last dozen
+sketches you worked on. *Recover…* lists them (file, site, areas, last change)
+and reopens one. It's a safety net for a sketch replaced before it was saved;
+*Save* is the record.
+
 **Pages.** *Page* in the toolbar: *+* adds a page (site plan, each building,
 each floor), *Rename*, *✕* deletes one (Undo brings it back). Each page is its
 own drawing; totals, the area calculations and `areas.json` cover every page,
@@ -215,7 +245,10 @@ chosen *paper* and orientation less a 0.4" margin, or *Report figure*
 
 - Curves are circular arcs only.
 - Areas are independent shapes: `CW` copies the walls it traces, it doesn't
-  link them.
+  link them, and stretching or moving one area's corner doesn't move an
+  attached area's.
+- Site coverage adds footprints; two footprint areas drawn on top of each
+  other on the same ground count twice.
 
 ## Future features
 

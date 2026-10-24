@@ -97,6 +97,11 @@
     overflow: auto; z-index: 10;
   }
   #lib td input[type=text] { width: 100%; }
+  #recover {
+    position: fixed; inset: 60px max(16px, 15%); background: #fff; border: 1px solid var(--line);
+    border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.2); padding: 16px 22px; overflow: auto; z-index: 10;
+  }
+  #recover td { padding: 4px 6px; }
   #lib td input[data-f=label] { min-width: 170px; }
   #lib td input[type=number] { width: 64px; }
   #fence { fill: rgba(37,99,235,.08); stroke: #2563eb; stroke-dasharray: 4 3; }
@@ -110,7 +115,7 @@
   #printArea { display: none; }
   @media print {
     body { display: block; background: #fff; }
-    header, #stage, aside, footer, #help, #lib { display: none !important; }
+    header, #stage, aside, footer, #help, #lib, #recover { display: none !important; }
     #printArea { display: block; }
     /* Each sheet is already the page's printable size, in inches. */
     #printArea .sheet { break-after: page; break-inside: avoid; }
@@ -125,6 +130,7 @@
     <button id="bNew" title="Start a new sketch">New</button>
     <button id="bOpen" title="Open a .sketch.json file">Open</button>
     <button id="bSave" title="Save the editable .sketch.json">Save</button>
+    <button id="bRecover" title="Reopen one of the last sketches this browser kept">Recover…</button>
   </div>
   <div class="grp">
     <button id="tDraw" class="on" title="Draw: click sets the start point, typed vectors draw the walls">Draw</button>
@@ -132,6 +138,8 @@
     <button id="tLabel" title="Label: click to place free text">Label</button>
     <button id="tOpening" title="Door / window: click a wall to place the opening chosen in the panel">Door/Window</button>
     <button id="tSymbol" title="Symbol: click to place the symbol chosen in the panel">Symbol</button>
+    <button id="tMeasure" title="Measure: click two points for a dimension line (setbacks, spacing); Shift keeps it square">Measure</button>
+    <button id="tPhoto" title="Photo: click where a photo was taken and drag the way it faces">Photo</button>
   </div>
   <div class="grp">
     <button id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
@@ -223,6 +231,7 @@
     <div class="row"><label for="sCat">Category</label><select id="sCat"></select></div>
     <div class="row"><label for="sGroup">Combine as</label><input id="sGroup" type="text" list="groupList" placeholder="blank = its own total"></div>
     <div class="row"><label for="sInc">In bldg area</label><span><input id="sInc" type="checkbox"> counts toward building area</span></div>
+    <div class="row"><label for="sFoot">Footprint</label><span><input id="sFoot" type="checkbox"> <span class="hint">ground it covers counts in site coverage</span></span></div>
     <div class="row"><label for="sFactor">Factor</label><span><input id="sFactor" type="number" step="0.05" min="0" style="width:70px"> <span class="hint">net = base × factor</span></span></div>
     <div class="row"><label for="sNeg">Negative</label><span><input id="sNeg" type="checkbox"> <span class="hint">deducts (stairwell, atrium)</span></span></div>
     <div class="row"><label for="sYear">Year built</label><input id="sYear" type="text" inputmode="numeric" placeholder="e.g. 1985" style="width:90px"></div>
@@ -247,8 +256,14 @@
     <div class="row"><label for="lSize">Size (px)</label><input id="lSize" type="number" min="6" max="48" value="12"></div>
     <div class="btns"><button id="lDel">Delete label</button></div>
   </div>
+  <div id="selDimline" hidden>
+    <div class="row"><label for="mText">Label</label><input id="mText" type="text" placeholder="e.g. Setback" list="measureList"></div>
+    <div class="row"><label>Length</label><span id="mLen"></span></div>
+    <div class="btns"><button id="mFlip" title="Put the text on the other side of the line">Flip text</button><button id="mDel">Delete dimension</button></div>
+  </div>
   <div id="selSymbol" hidden>
-    <div class="row"><label for="yType">Symbol</label><select id="yType"></select></div>
+    <div class="row" id="yNumRow"><label for="yNum">Photo no.</label><input id="yNum" type="number" min="1" step="1" style="width:70px"></div>
+    <div class="row" id="yTypeRow"><label for="yType">Symbol</label><select id="yType"></select></div>
     <div class="row"><label for="yRot">Rotation °</label><span style="display:flex;gap:4px"><input id="yRot" type="number" step="5" style="width:70px">
       <button id="yRotL" title="Turn 90° counter-clockwise">⟲ 90</button><button id="yRotR" title="Turn 90° clockwise">⟳ 90</button></span></div>
     <div class="row"><label for="ySize">Size %</label><input id="ySize" type="number" min="10" max="1000" step="10"></div>
@@ -299,6 +314,9 @@
     <tr><td><b>Delete</b> (empty line)</td><td>Delete the selection.</td></tr>
     <tr><td><b>Ctrl+A</b> / <b>Ctrl+C</b> / <b>Ctrl+V</b></td><td>Select everything shown / copy / paste. With one level shown, paste puts the copy on that level in place: copy the main floor, show Upper, paste.</td></tr>
     <tr><td>Select tool</td><td>Click to select; <b>Shift+click</b> adds; drag on empty space draws a fence around what to select. Click a dimension to hide it (or show it again).</td></tr>
+    <tr><td>Editing on the plan</td><td>Select one area and its corners show handles: <b>drag a corner</b> to move it (Shift keeps it square);
+    click a handle and press <b>Delete</b> to remove that corner; <b>double-click a wall</b> to add a corner there.
+    <b>Double-click a dimension</b> and type the new length: the wall stretches and every corner beyond its far end moves with it.</td></tr>
     <tr><td>Mouse wheel / right-drag</td><td>Zoom / pan. In Draw mode you can also click out corners; hold Shift to keep a wall square.</td></tr>
     <tr><td><b>auto-fit</b> (toolbar)</td><td>On: after each wall you confirm with Enter, the view re-fits so the whole drawing stays in view. Untick it to stay zoomed in on a detail.</td></tr>
   </table>
@@ -310,6 +328,18 @@
   height, swing <b>out</b> instead of into the room, and <b>⇄</b> to hinge at the other jamb. Openings move, rotate and
   mirror with their area and never change an area. Click a symbol in the palette, then click the plan to place it (keep clicking
   for more). Symbols are drawn at real size; select one to rotate it (⟲ ⟳ or any angle) or resize it.</p>
+  <h3>Measure and photos</h3>
+  <p><b>Measure</b>: click one point, then another, for a dimension line (setbacks, spacing between buildings, apron depth); Shift keeps it
+  square. Give it a label (e.g. Setback) under Selected. <b>Photo</b>: click where a photo was taken and drag the way the camera faced;
+  markers number themselves (change the number under Selected) and are listed with their facing in <code>areas.json</code>.</p>
+  <h3>Site improvements and coverage</h3>
+  <p>Draw paving, gravel and landscaping in the <b>Asphalt paving</b>, <b>Concrete paving</b>, <b>Gravel</b> and <b>Landscaped</b>
+  categories: they're totalled on their own, never as building area. <b>Site coverage</b> is building footprint ÷ site area; an area's
+  <b>Footprint</b> box (under Selected, set from its category: on for main floors, garages, warehouses…, off for upper floors,
+  basements, mezzanines, decks) says whether the ground it covers counts.</p>
+  <h3>Recover</h3>
+  <p><b>Recover…</b> reopens one of the last dozen sketches this browser worked on, as they were at their last change. It's a safety
+  net; <b>Save</b> is the record.</p>
   <h3>Pages</h3>
   <p><b>Page</b> in the toolbar: <b>+</b> adds a page (site plan, each building, each floor), <b>Rename</b>, <b>✕</b> deletes one.
   Each page is its own drawing; totals and <code>areas.json</code> cover every page. Each sheet is headed with the title and page
@@ -349,6 +379,13 @@
   <p><button id="bHelpClose">Close</button></p>
 </div>
 
+<div id="recover" hidden>
+  <h2 style="margin-top:0">Recover a recent sketch</h2>
+  <p class="hint">This browser keeps the last dozen sketches you worked on, as they were at their last change. It's a safety
+  net, not a record: <b>Save</b> is the record. Opening one replaces what's on screen (Undo brings it back).</p>
+  <table id="recoverTable"></table>
+  <div class="btns"><button id="recoverClose">Close</button></div>
+</div>
 <div id="lib" hidden>
   <h2 style="margin-top:0">Area library</h2>
   <p class="hint">The categories areas are drawn in. <b>Code</b> can show on the plan (Label: code). <b>Counts</b> and <b>Factor</b>
@@ -364,6 +401,8 @@
 </div>
 <datalist id="groupList"></datalist>
 <datalist id="labelList"></datalist>
+<datalist id="measureList"><option value="Setback"><option value="Front setback"><option value="Side yard"><option value="Rear yard">
+  <option value="Building separation"><option value="Apron"><option value="Frontage"><option value="Depth"></datalist>
 <div id="printArea"></div>
 <input id="fOpen" type="file" accept=".json,application/json" hidden>
 <input id="fImg" type="file" accept="image/*" hidden>
@@ -378,21 +417,26 @@
 // always reopens the same; "Save as my default" seeds new sketches. "site"
 // and "line" behave specially and can be relabelled but not deleted.
 const BUILTIN_CATS = [
-  { key: "main",      code: "GLA1", label: "Main floor",            inc: true,  factor: 1, fill: "#dbeafe" },
-  { key: "upper",     code: "GLA2", label: "Upper floor",           inc: true,  factor: 1, fill: "#e0e7ff" },
-  { key: "basement",  code: "BSMT", label: "Basement",              inc: false, factor: 1, fill: "#e5e7eb" },
-  { key: "garage",    code: "GAR",  label: "Garage",                inc: false, factor: 1, fill: "#fef3c7" },
-  { key: "deck",      code: "P/P",  label: "Deck / porch",          inc: false, factor: 1, fill: "#dcfce7" },
-  { key: "office",    code: "OFF",  label: "Office",                inc: true,  factor: 1, fill: "#e0f2fe" },
-  { key: "retail",    code: "RET",  label: "Retail",                inc: true,  factor: 1, fill: "#fce7f3" },
-  { key: "warehouse", code: "WHS",  label: "Warehouse / industrial",inc: true,  factor: 1, fill: "#f3f4f6" },
-  { key: "mezzanine", code: "MEZ",  label: "Mezzanine",             inc: false, factor: 1, fill: "#ede9fe" },
-  { key: "unit",      code: "UNIT", label: "Residential unit",      inc: true,  factor: 1, fill: "#fae8ff" },
-  { key: "common",    code: "COM",  label: "Common area",           inc: true,  factor: 1, fill: "#f5f5f4" },
-  { key: "canopy",    code: "CAN",  label: "Canopy / covered",      inc: false, factor: 1, fill: "#ecfccb" },
-  { key: "line",      code: "",     label: "Interior / fence line", inc: false, factor: 1, fill: "none" },
-  { key: "site",      code: "SITE", label: "Site / lot",            inc: false, factor: 1, fill: "none" },
-  { key: "other",     code: "OTH",  label: "Other",                 inc: false, factor: 1, fill: "#fff7ed" },
+  { key: "main",      code: "GLA1", label: "Main floor",            inc: true,  factor: 1, fill: "#dbeafe", foot: true },
+  { key: "upper",     code: "GLA2", label: "Upper floor",           inc: true,  factor: 1, fill: "#e0e7ff", foot: false },
+  { key: "basement",  code: "BSMT", label: "Basement",              inc: false, factor: 1, fill: "#e5e7eb", foot: false },
+  { key: "garage",    code: "GAR",  label: "Garage",                inc: false, factor: 1, fill: "#fef3c7", foot: true },
+  { key: "deck",      code: "P/P",  label: "Deck / porch",          inc: false, factor: 1, fill: "#dcfce7", foot: false },
+  { key: "office",    code: "OFF",  label: "Office",                inc: true,  factor: 1, fill: "#e0f2fe", foot: true },
+  { key: "retail",    code: "RET",  label: "Retail",                inc: true,  factor: 1, fill: "#fce7f3", foot: true },
+  { key: "warehouse", code: "WHS",  label: "Warehouse / industrial",inc: true,  factor: 1, fill: "#f3f4f6", foot: true },
+  { key: "mezzanine", code: "MEZ",  label: "Mezzanine",             inc: false, factor: 1, fill: "#ede9fe", foot: false },
+  { key: "unit",      code: "UNIT", label: "Residential unit",      inc: true,  factor: 1, fill: "#fae8ff", foot: true },
+  { key: "common",    code: "COM",  label: "Common area",           inc: true,  factor: 1, fill: "#f5f5f4", foot: true },
+  { key: "canopy",    code: "CAN",  label: "Canopy / covered",      inc: false, factor: 1, fill: "#ecfccb", foot: false },
+  // Site improvements: measured and totalled on their own, never building area.
+  { key: "asphalt",   code: "ASPH", label: "Asphalt paving",        inc: false, factor: 1, fill: "#d6d3d1", foot: false, siteImp: true },
+  { key: "concrete",  code: "CONC", label: "Concrete paving",       inc: false, factor: 1, fill: "#e7e5e4", foot: false, siteImp: true },
+  { key: "gravel",    code: "GRVL", label: "Gravel",                inc: false, factor: 1, fill: "#f5f5f4", foot: false, siteImp: true },
+  { key: "landscape", code: "LAND", label: "Landscaped",            inc: false, factor: 1, fill: "#ecfdf5", foot: false, siteImp: true },
+  { key: "line",      code: "",     label: "Interior / fence line", inc: false, factor: 1, fill: "none", foot: false },
+  { key: "site",      code: "SITE", label: "Site / lot",            inc: false, factor: 1, fill: "none", foot: false },
+  { key: "other",     code: "OTH",  label: "Other",                 inc: false, factor: 1, fill: "#fff7ed", foot: true },
 ];
 const FIXED_CATS = ["line", "site", "other"];
 const CATS = [], CAT = {};
@@ -402,10 +446,16 @@ function defaultCats() {
   catch (e) { /* no stored default */ }
   return JSON.parse(JSON.stringify(BUILTIN_CATS));
 }
-// A library always holds the special categories, and every category any area uses.
+// A library always holds the special categories, the site-improvement ones
+// (added to older sketches), and every category any area uses. Built-in
+// categories saved before footprints existed take their footprint flag from here.
 function withFixedCats(list) {
-  const out = list.map(c => Object.assign({ code: "", factor: 1, inc: false, fill: "#f3f4f6" }, c));
-  for (const k of FIXED_CATS) if (!out.some(c => c.key === k)) out.push(JSON.parse(JSON.stringify(BUILTIN_CATS.find(c => c.key === k))));
+  const out = list.map(c => {
+    const b = BUILTIN_CATS.find(x => x.key === c.key);
+    return Object.assign({ code: "", factor: 1, inc: false, fill: "#f3f4f6" }, b ? { foot: b.foot, siteImp: b.siteImp } : { foot: !!c.inc }, c);
+  });
+  for (const b of BUILTIN_CATS) if ((FIXED_CATS.includes(b.key) || b.siteImp) && !out.some(c => c.key === b.key))
+    out.splice(b.siteImp ? Math.max(0, out.findIndex(c => c.key === "line")) : out.length, 0, JSON.parse(JSON.stringify(b)));
   return out;
 }
 function setCats(list) {
@@ -425,9 +475,16 @@ function setCats(list) {
 }
 // Closed areas that are measured: interior and fence lines never are.
 const isCalc = a => a.closed && a.category !== "line";
+// Site improvements (paving, gravel, landscaping) and the building footprint.
+const isSiteImp = a => !!(CAT[a.category] && CAT[a.category].siteImp);
+const footOf = a => a.category !== "site" && !isSiteImp(a) && (typeof a.foot === "boolean" ? a.foot : !!(CAT[a.category] || {}).foot);
 const FT_TO_M = 0.3048;
 const EPS = 1e-6;
 const AUTOSAVE_KEY = "jks-sketch-autosave-v1";
+// Besides the current sketch, the last few sketches are kept in the browser so
+// starting a new one (or a mistake) can't lose unsaved work: Recover lists them.
+const RECENT_KEY = "jks-sketch-recent-v1", RECENT_MAX = 12;
+const newUid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 // ---------------------------------------------------------------- state
 // Printed at the foot of every exported page unless the sketch clears them.
@@ -443,7 +500,8 @@ function emptySketch() {
     // Pages: separate drawing sheets (site plan, each building, each floor…).
     // Every area, label and symbol belongs to one; totals cover all of them.
     pages: [{ id: "p1", name: "Page 1" }],
-    areas: [], labels: [], symbols: [], nextId: 1,
+    uid: newUid(),
+    areas: [], labels: [], symbols: [], dimlines: [], nextId: 1,
     // What an area's label shows on the plan (Apex's auto-post options).
     show: { code: false, name: true, area: true },
   };
@@ -459,6 +517,9 @@ let viewLevel = "";         // "" = all levels; otherwise only that level is sho
 let curPage = "p1";         // the page being shown and drawn on
 let clip = null;            // copied areas, labels and symbols
 let curSym = "stairs";      // the symbol the Symbol tool places
+let measureStart = null;    // the first point of a dimension line being placed
+let activeVertex = null;    // { id, i }: the corner handle last clicked (Delete removes it)
+let dimClickTimer = null;   // a single click on a dimension waits, in case it's a double-click
 let tool = "draw";
 let hover = null;           // snapped world point under the cursor
 let ghost = [];             // preview points from the half-typed command
@@ -1019,6 +1080,18 @@ function wallsClosure(pts) {
 
 // ---------------------------------------------------------------- history
 function snapshot() { return JSON.stringify(S); }
+function recentList() { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch (e) { return []; } }
+// This sketch's entry in the recent list, newest first. Empty sketches aren't kept.
+function keepRecent() {
+  if (!S.areas.length && !S.labels.length && !S.symbols.length) return;
+  const label = [S.info.file ? "File " + S.info.file : "", S.info.site, S.info.address].filter(Boolean).join(" · ") || S.info.title || "Untitled sketch";
+  let list = [{ uid: S.uid, saved: Date.now(), label, areas: S.areas.length, data: snapshot() }, ...recentList().filter(r => r.uid !== S.uid)].slice(0, RECENT_MAX);
+  // Browser storage is limited: drop the oldest until the list fits.
+  while (list.length) {
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); return; }
+    catch (e) { if (list.length === 1) return; list = list.slice(0, -1); }
+  }
+}
 function pushHistory() { history.push(snapshot()); if (history.length > 200) history.shift(); future = []; }
 function undo() {
   if (draw) {
@@ -1033,6 +1106,8 @@ function redo() {
   history.push(snapshot()); S = JSON.parse(future.pop()); afterLoad();
 }
 function afterLoad() {
+  if (!S.uid) S.uid = newUid();
+  if (!Array.isArray(S.dimlines)) S.dimlines = [];
   setCats(S.cats || defaultCats());
   ensurePages();
   picks = picks.filter(p => listOf(p.kind).some(x => x.id === p.id));
@@ -1041,6 +1116,7 @@ function afterLoad() {
 }
 function commit() {
   try { localStorage.setItem(AUTOSAVE_KEY, snapshot()); } catch (e) { /* storage unavailable: autosave is a convenience */ }
+  keepRecent();
   render(); renderPanel();
 }
 
@@ -1060,7 +1136,9 @@ function togglePick(s) {
 function pickedItems() {
   return picks.map(p => ({ it: listOf(p.kind).find(x => x.id === p.id), kind: p.kind })).filter(x => x.it);
 }
-function listOf(kind) { return kind === "area" ? S.areas : kind === "symbol" ? S.symbols : S.labels; }
+function listOf(kind) { return kind === "area" ? S.areas : kind === "symbol" ? S.symbols : kind === "dimline" ? S.dimlines : S.labels; }
+// Points that carry an item's position (for moving, rotating, copying, fencing).
+const itemPoints = (it, kind) => kind === "area" ? it.points : kind === "dimline" ? [it.a, it.b] : [[it.x, it.y]];
 // Levels: with a level chosen in "Show", other levels' areas and labels are
 // hidden from the canvas, from snapping and tracing, and from the export.
 // Site areas and anything with no level always show.
@@ -1079,6 +1157,7 @@ function renderPages() {
 const visAreas = () => S.areas.filter(visible);
 const visLabels = () => S.labels.filter(visible);
 const visSymbols = () => S.symbols.filter(visible);
+const visDimlines = () => S.dimlines.filter(visible);
 function levelsInUse() {
   return [...new Set(S.areas.filter(a => a.category !== "site").map(a => (a.level || "").trim()).filter(Boolean))];
 }
@@ -1094,6 +1173,7 @@ function hitTest(w) {
     }
   }
   for (const s of visSymbols().reverse()) if (symHit(s, w)) return { kind: "symbol", id: s.id };
+  for (const d of visDimlines().reverse()) if (distToSeg(w, d.a, d.b) < 6 / view.zoom) return { kind: "dimline", id: d.id };
   for (const l of visLabels().reverse()) {
     const hw = (l.text.length * (l.size || 12) * 0.3) / view.zoom, hh = (l.size || 12) * 0.6 / view.zoom;
     if (Math.abs(w[0] - l.x) < hw && Math.abs(w[1] - l.y) < hh) return { kind: "label", id: l.id };
@@ -1129,7 +1209,7 @@ function H() { return svg.clientHeight || 600; }
 function w2s(v, Wd, Ht, x, y) { return [(x - v.cx) * v.zoom + Wd / 2, (v.cy - y) * v.zoom + Ht / 2]; }
 function s2w(px, py) { return [(px - W() / 2) / view.zoom + view.cx, view.cy - (py - H() / 2) / view.zoom]; }
 function allPoints(withUnderlay) {
-  const pts = visAreas().flatMap(outline).concat(visLabels().map(l => [l.x, l.y]), visSymbols().flatMap(symCorners));
+  const pts = visAreas().flatMap(outline).concat(visLabels().map(l => [l.x, l.y]), visSymbols().flatMap(symCorners), visDimlines().flatMap(d => [d.a, d.b]));
   if (draw) pts.push(...outline(draw));
   if (withUnderlay && underlay) {
     pts.push([underlay.x, underlay.y], [underlay.x + underlay.w * underlay.scale, underlay.y - underlay.h * underlay.scale]);
@@ -1192,14 +1272,15 @@ function scene(v, Wd, Ht, o) {
   for (const a of order) out.push(areaSvg(a, T, o, !o.noSel && isPicked("area", a.id)));
   // Openings after every area, so a neighbour's wall drawn later can't close the gap.
   for (const a of order) for (const op of a.openings || []) out.push(openingSvg(a, op, T, !o.noSel && isPicked("area", a.id), o.k));
-  for (const s of visSymbols()) out.push(symbolSvg(s, T, v.zoom, !o.noSel && isPicked("symbol", s.id), o.minText));
+  for (const s of visSymbols()) out.push(symbolSvg(s, T, v.zoom, !o.noSel && isPicked("symbol", s.id), o.minText, o.k));
+  for (const d of visDimlines()) out.push(dimlineSvg(d, T, o.k, !o.noSel && isPicked("dimline", d.id)));
   for (const l of visLabels()) {
     const [sx, sy] = T(l.x, l.y), isSel = !o.noSel && isPicked("label", l.id);
     const lsz = o.minText ? Math.max(l.size || 12, 10) * o.k : l.size || 12;
     out.push(`<text x="${sx}" y="${sy}" font-size="${lsz}" text-anchor="middle" dominant-baseline="middle" ` +
       `font-family="Arial, Helvetica, sans-serif" fill="${isSel ? "#2563eb" : "#111827"}">${esc(l.text)}</text>`);
   }
-  if (o.live) out.push(liveSvg(T));
+  if (o.live) out.push(handlesSvg(T), liveSvg(T));
   return out.join("");
 }
 // Where each wall's dimension goes, in screen space.
@@ -1512,7 +1593,8 @@ const SYMBOLS = [
 ];
 const SYM = Object.fromEntries(SYMBOLS.map(s => [s.key, s]));
 const symScale = s => (S.units === "m" ? FT_TO_M : 1) * (s.size || 1);   // world units per symbol foot
-function symbolSvg(s, T, zoom, isSel, minText) {
+function symbolSvg(s, T, zoom, isSel, minText, k = 1) {
+  if (s.type === "photo") return photoSvg(s, T, isSel, k);
   const d = SYM[s.type];
   if (!d) return "";
   const [sx, sy] = T(s.x, s.y), sc = zoom * symScale(s);
@@ -1524,14 +1606,49 @@ function symbolSvg(s, T, zoom, isSel, minText) {
 }
 // The symbol's own frame: is world point w within its box?
 function symHit(s, w) {
+  if (s.type === "photo") return dist(w, [s.x, s.y]) < 12 / view.zoom;
   const d = SYM[s.type], k = symScale(s), r = (s.rot || 0) * Math.PI / 180;
   if (!d) return false;
   const vx = w[0] - s.x, vy = w[1] - s.y, a = vx * Math.cos(r) + vy * Math.sin(r), b = -vx * Math.sin(r) + vy * Math.cos(r);
   return Math.abs(a / k) <= d.w / 2 + 0.3 && Math.abs(b / k) <= d.h / 2 + 0.3;
 }
 function symCorners(s) {
-  const d = SYM[s.type] || { w: 1, h: 1 }, k = symScale(s), r = Math.hypot(d.w, d.h) / 2 * k;
+  const d = SYM[s.type] || { w: 1, h: 1 }, k = symScale(s), r = s.type === "photo" ? 0 : Math.hypot(d.w, d.h) / 2 * k;
   return [[s.x - r, s.y - r], [s.x + r, s.y + r]];
+}
+
+// ---------------------------------------------------------------- measure (dimension lines)
+// A free dimension between two points: d = { a, b, text, flip, page, level }.
+// Drawn with end ticks and the length (after an optional label) at the
+// minimum text size, so setbacks and spacing read like the wall dimensions.
+function dimlineSvg(d, T, k = 1, isSel = false) {
+  const [ax, ay] = T(...d.a), [bx, by] = T(...d.b), L = dist(d.a, d.b), sl = Math.hypot(bx - ax, by - ay) || 1;
+  const tx = (bx - ax) / sl, ty = (by - ay) / sl, side = d.flip ? 1 : -1, nx = -ty * side, ny = tx * side;
+  const ink = isSel ? "#2563eb" : "#1f2937", tk = 5;
+  const tick = (x, y) => `M${(x - (tx + nx) * tk).toFixed(1)} ${(y - (ty + ny) * tk).toFixed(1)}L${(x + (tx + nx) * tk).toFixed(1)} ${(y + (ty + ny) * tk).toFixed(1)}`;
+  const mx = (ax + bx) / 2 + nx * 8 * k, my = (ay + by) / 2 + ny * 8 * k;
+  let ang = Math.atan2(ty, tx) * 180 / Math.PI;
+  if (ang > 90) ang -= 180; else if (ang <= -90) ang += 180;
+  const txt = (d.text ? d.text + " " : "") + fmtLen(L);
+  return `<path d="M${ax.toFixed(1)} ${ay.toFixed(1)}L${bx.toFixed(1)} ${by.toFixed(1)}${tick(ax, ay)}${tick(bx, by)}" stroke="${ink}" stroke-width="1" fill="none"/>` +
+    `<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" font-size="${11 * k}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, Helvetica, sans-serif" ` +
+    `fill="${ink}" stroke="#fff" stroke-width="${3 * k}" stroke-linejoin="round" paint-order="stroke" transform="rotate(${ang.toFixed(2)} ${mx.toFixed(1)} ${my.toFixed(1)})">${esc(txt)}</text>`;
+}
+
+// ---------------------------------------------------------------- photo markers
+// A photo marker is a symbol of type "photo" with a number: a circle at the
+// spot the photo was taken, the number inside, and a wedge pointing the way the
+// camera faced (rot, counter-clockwise from north/up). It stays the same size
+// on screen and prints at the minimum text size, whatever the plan's scale.
+const nextPhotoNum = () => S.symbols.filter(s => s.type === "photo").reduce((m, s) => Math.max(m, s.num || 0), 0) + 1;
+const COMPASS = ["N", "NNW", "NW", "WNW", "W", "WSW", "SW", "SSW", "S", "SSE", "SE", "ESE", "E", "ENE", "NE", "NNE"];
+const facingText = s => COMPASS[Math.round((((s.rot || 0) % 360) + 360) % 360 / 22.5) % 16];
+function photoSvg(s, T, isSel, k = 1) {
+  const [sx, sy] = T(s.x, s.y), r = 9 * k, ink = isSel ? "#2563eb" : "#b91c1c";
+  return `<g transform="translate(${sx.toFixed(2)} ${sy.toFixed(2)})">` +
+    `<path d="M${(-r * 0.7).toFixed(1)} ${(-r * 0.7).toFixed(1)}L0 ${(-r * 2.1).toFixed(1)}L${(r * 0.7).toFixed(1)} ${(-r * 0.7).toFixed(1)}Z" fill="${ink}" transform="rotate(${-(s.rot || 0)})"/>` +
+    `<circle r="${r}" fill="#fff" stroke="${ink}" stroke-width="1.5"/>` +
+    `<text font-size="${10 * k}" font-weight="bold" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" fill="${ink}">${s.num || ""}</text></g>`;
 }
 
 function liveSvg(T) {
@@ -1556,11 +1673,15 @@ function liveSvg(T) {
     const sg = ghost.map(q => T(q[0], q[1]));
     out.push(`<polyline points="${sg.map(q => q.join(",")).join(" ")}" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="5 4"/>`);
   }
-  if (hover && (tool === "draw" || tool === "calib")) {
+  if (hover && (tool === "draw" || tool === "calib" || tool === "measure")) {
     const [hx, hy] = T(hover.pt[0], hover.pt[1]);
     out.push(hover.vertex
       ? `<rect x="${hx - 5}" y="${hy - 5}" width="10" height="10" fill="none" stroke="#dc2626" stroke-width="1.5"/>`
       : `<circle cx="${hx}" cy="${hy}" r="3" fill="none" stroke="#9ca3af"/>`);
+  }
+  if (measureStart && tool === "measure") {
+    const end = hover ? hover.pt : measureStart;
+    out.push(dimlineSvg({ a: measureStart, b: end, text: "" }, T, 1, true));
   }
   if (calib) {
     const [cx, cy] = T(calib[0], calib[1]);
@@ -1599,12 +1720,16 @@ const STORAGE = {
   cold: { label: "Cold storage",      short: "Cold storage" },
 };
 const storageOf = a => STORAGE[a.storage] ? a.storage || "" : "";
+// Footprint is the ground covered by buildings (base areas ticked "footprint",
+// on every page), and site coverage is footprint ÷ site area.
 function totals() {
-  const bld = new Map(); let site = 0;
+  const bld = new Map(), siteImp = {}; let site = 0, footprint = 0;
   for (const a of S.areas) {
     if (!isCalc(a)) continue;
     const v = netAreaOf(a);
     if (a.category === "site") { site += v; continue; }
+    if (isSiteImp(a)) { siteImp[a.category] = (siteImp[a.category] || 0) + v; continue; }
+    if (footOf(a)) footprint += areaOf(a);
     const key = a.building || "(no building)";
     if (!bld.has(key)) bld.set(key, { building: key, building_area: 0, semi: 0, cold: 0, by_level: {}, by_category: {} });
     const t = bld.get(key);
@@ -1617,16 +1742,30 @@ function totals() {
     const lv = a.level || "(no level)";
     t.by_level[lv] = (t.by_level[lv] || 0) + v;
   }
-  return { buildings: [...bld.values()], site };
+  return { buildings: [...bld.values()], site, siteImp, footprint, coverage: site > EPS && footprint > 0 ? footprint / site : null };
 }
+// Footer lines shared by the panel, the calculations and the printed table.
+function siteLines(t) {
+  const out = Object.entries(t.siteImp).map(([k, v]) => [`${CAT[k] ? CAT[k].label : k}`, v]);
+  if (t.footprint) out.push(["Building footprint", t.footprint]);
+  return out;
+}
+const coverageText = t => t.coverage === null ? "" : `Site coverage ${fmtNum(t.coverage * 100, 1)}%`;
 function renderPanel() {
   const it = findSel();
   $("selNone").hidden = !!it;
   $("selArea").hidden = !(it && sel.kind === "area");
   $("selLabel").hidden = !(it && sel.kind === "label");
   $("selSymbol").hidden = !(it && sel.kind === "symbol");
-  if (it && sel.kind === "symbol") {
-    $("yType").value = it.type;
+  $("selDimline").hidden = !(it && sel.kind === "dimline");
+  if (it && sel.kind === "dimline") {
+    if (document.activeElement !== $("mText")) $("mText").value = it.text || "";
+    $("mLen").textContent = fmtLen(dist(it.a, it.b));
+  } else if (it && sel.kind === "symbol") {
+    const photo = it.type === "photo";
+    $("yNumRow").hidden = !photo; $("yTypeRow").hidden = photo; $("ySize").closest(".row").hidden = photo;
+    if (photo && document.activeElement !== $("yNum")) $("yNum").value = it.num || "";
+    if (!photo) $("yType").value = it.type;
     if (document.activeElement !== $("yRot")) $("yRot").value = fmtNum(it.rot || 0, 2);
     if (document.activeElement !== $("ySize")) $("ySize").value = Math.round((it.size || 1) * 100);
   } else if (it && sel.kind === "area") {
@@ -1636,6 +1775,7 @@ function renderPanel() {
     if (document.activeElement !== $("sLevel")) $("sLevel").value = it.level;
     if (document.activeElement !== $("sGroup")) $("sGroup").value = it.group || "";
     $("sCat").value = it.category; $("sInc").checked = it.included; $("sDims").checked = it.dims;
+    $("sFoot").checked = footOf(it); $("sFoot").disabled = it.category === "site" || isSiteImp(it);
     if (document.activeElement !== $("sFactor")) $("sFactor").value = factorOf(it).toFixed(2);
     $("sNeg").checked = !!it.negative;
     $("sStorage").value = storageOf(it);
@@ -1680,6 +1820,8 @@ function renderPanel() {
     if (b.cold) h += `<tr class="total"><td colspan="2">${esc(b.building)} cold storage</td><td class="n">${fmtArea(b.cold).replace(/ .*/, "")}</td><td></td></tr>`;
   }
   if (t.site) h += `<tr class="total"><td colspan="2">Site area</td><td class="n">${fmtArea(t.site).replace(/ .*/, "")}</td><td></td></tr>`;
+  for (const [l, v] of siteLines(t)) h += `<tr><td colspan="2" class="hint">${esc(l)}</td><td class="n">${fmtArea(v).replace(/ .*/, "")}</td><td></td></tr>`;
+  if (coverageText(t)) h += `<tr class="total"><td colspan="3">${coverageText(t)}</td><td></td></tr>`;
   h += "</tbody></table>";
   if (!S.areas.length) h = `<div class="hint">No areas yet. Click a corner on the canvas, then type e.g. <code>R40 D28 L40 C</code>.</div>`;
   $("summary").innerHTML = h;
@@ -1717,7 +1859,7 @@ const isCalcOpen = k => calcOpen.has(k) ? calcOpen.get(k) : !k.startsWith("a:");
 function calcKeys() {
   const keys = [];
   for (const a of S.areas) if (isCalc(a)) {
-    const b = a.category === "site" ? "Site" : a.building || "(no building)";
+    const b = a.category === "site" || isSiteImp(a) ? "Site" : a.building || "(no building)";
     keys.push("b:" + b, "c:" + b + "|" + a.category, "a:" + a.id);
   }
   return [...new Set(keys)];
@@ -1727,7 +1869,7 @@ function renderCalcs() {
   const tree = new Map();   // building -> category -> [areas]
   for (const a of S.areas) {
     if (!isCalc(a)) continue;
-    const b = a.category === "site" ? "Site" : a.building || "(no building)";
+    const b = a.category === "site" || isSiteImp(a) ? "Site" : a.building || "(no building)";
     if (!tree.has(b)) tree.set(b, new Map());
     const cats = tree.get(b);
     if (!cats.has(a.category)) cats.set(a.category, []);
@@ -1771,6 +1913,8 @@ function renderCalcs() {
   }
   for (const g of groupsOf().values()) h += `<div><span>${esc(g.name)} (combined)</span><span>${n2(g.total)} ${u}</span></div>`;
   if (t.site) h += `<div><span>Site area</span><span>${n2(t.site)} ${u}</span></div>`;
+  for (const [l, v] of siteLines(t)) h += `<div><span>${esc(l)}</span><span>${n2(v)} ${u}</span></div>`;
+  if (coverageText(t)) h += `<div><span>Site coverage</span><span>${fmtNum(t.coverage * 100, 1)}%</span></div>`;
   for (const [b, d] of Object.entries(doorsByBuilding())) {
     if (d.dock_doors.length) h += `<div><span>${esc(b)} — dock doors</span><span>${esc(doorSizesText(d.dock_doors))}</span></div>`;
     if (d.grade_level_doors.length) h += `<div><span>${esc(b)} — grade doors</span><span>${esc(doorSizesText(d.grade_level_doors))}</span></div>`;
@@ -1846,6 +1990,8 @@ function exportSvg() {
       if (bt.cold) rows.push([`${bt.building} — cold storage${scope}`, "", "", fmtArea(bt.cold), "", true]);
     }
     if (t.site) rows.push(["Site area", "", "", fmtArea(t.site), "", true]);
+    for (const [l, v] of siteLines(t)) rows.push([l + scope, "", "", fmtArea(v), "", true]);
+    if (coverageText(t)) rows.push([`${coverageText(t)} (footprint ÷ site area)`, "", "", "", "", true]);
     // Door counts belong to the building, whatever page or level is shown.
     for (const [bn, d] of Object.entries(doorsByBuilding())) {
       if (d.dock_doors.length) rows.push([`${bn} — dock-height doors: ${doorSizesText(d.dock_doors)}`, "", "", "", "", true]);
@@ -1962,7 +2108,8 @@ function areasJson() {
     areas: S.areas.filter(isCalc).map(a => ({
       name: a.name, building: a.building, level: a.level,
       category: a.category, category_label: CAT[a.category].label,
-      included_in_building_area: a.category !== "site" && a.included,
+      included_in_building_area: a.category !== "site" && !isSiteImp(a) && a.included,
+      in_footprint: footOf(a), site_improvement: isSiteImp(a),
       combined_as: groupOf(a, groups) ? a.group.trim() : null,
       base_area: both(areaOf(a)), factor: factorOf(a), negative: !!a.negative,
       area: both(netAreaOf(a)),
@@ -1988,6 +2135,12 @@ function areasJson() {
     }),
     combined: [...groups.values()].map(g => ({ name: g.name, members: g.members.map(m => m.name), area: both(g.total) })),
     site_area: t.site ? both(t.site) : null,
+    measurements: S.dimlines.map(d => ({ label: d.text || "", length: len(dist(d.a, d.b)), page: (S.pages.find(p => p.id === pageOf(d)) || {}).name })),
+    photos: S.symbols.filter(x => x.type === "photo").sort((x, y) => x.num - y.num)
+      .map(x => ({ number: x.num, facing: facingText(x), page: (S.pages.find(p => p.id === pageOf(x)) || {}).name })),
+    site_improvements: Object.fromEntries(Object.entries(t.siteImp).map(([k, v]) => [k, both(v)])),
+    building_footprint: both(t.footprint),
+    site_coverage_pct: t.coverage === null ? null : Math.round(t.coverage * 1000) / 10,
   };
 }
 function baseName() {
@@ -2018,7 +2171,9 @@ function status(msg, cls) { const s = $("status"); s.textContent = msg || ""; s.
 // ---------------------------------------------------------------- tools
 function setTool(t) {
   tool = t; calib = null;
+  measureStart = null;
   for (const [id, k] of [["tDraw", "draw"], ["tSelect", "select"], ["tLabel", "label"], ["tOpening", "opening"], ["tSymbol", "symbol"],
+    ["tMeasure", "measure"], ["tPhoto", "photo"],
     ["tCalib", "calib"], ["tMoveU", "moveU"]])
     $(id).classList.toggle("on", k === t);
   for (const b of document.querySelectorAll("#symGrid button")) b.classList.toggle("on", t === "symbol" && b.dataset.sym === curSym);
@@ -2124,6 +2279,8 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
     if (!$("help").hidden) return showHelp(false);
     if (!$("lib").hidden) { $("lib").hidden = true; return; }
+    if (!$("recover").hidden) { $("recover").hidden = true; return; }
+    if (activeVertex) { activeVertex = null; status(""); return render(); }
     if (draw) { draw = null; status("Area cancelled."); }
     else { setSel(null); calib = null; }
     cmd.value = ""; ghost = []; renderPanel(); return render();
@@ -2134,8 +2291,18 @@ document.addEventListener("keydown", e => {
   if (mod && key === "v") { e.preventDefault(); return pasteClip(); }
   if (mod && key === "a") {
     e.preventDefault();
-    picks = visAreas().map(a => ({ kind: "area", id: a.id })).concat(visLabels().map(l => ({ kind: "label", id: l.id })), visSymbols().map(s => ({ kind: "symbol", id: s.id })));
+    picks = visAreas().map(a => ({ kind: "area", id: a.id })).concat(visLabels().map(l => ({ kind: "label", id: l.id })), visSymbols().map(s => ({ kind: "symbol", id: s.id })), visDimlines().map(d => ({ kind: "dimline", id: d.id })));
     sel = picks[0] || null; renderPanel(); return render();
+  }
+  if (activeVertex && (e.key === "Delete" || e.key === "Backspace")) {
+    const a = S.areas.find(x => x.id === activeVertex.id);
+    e.preventDefault();
+    if (!a) { activeVertex = null; return; }
+    pushHistory();
+    const r = removeCorner(a, activeVertex.i);
+    if (r.err) { history.pop(); return status(r.err, "bad"); }
+    activeVertex = null; commit();
+    return status(`Corner removed.${r.gone ? ` ${r.gone} door(s)/window(s) on those walls were removed too.` : ""} ${a.closed ? closingNote(a.points) : ""}`, "ok");
   }
   const items = pickedItems();
   if (items.length && e.key === "Delete") { e.preventDefault(); return deleteSel(); }
@@ -2147,6 +2314,7 @@ document.addEventListener("keydown", e => {
   }
 });
 function moveItem({ it, kind }, dx, dy) {
+  if (kind === "dimline") { for (const q of [it.a, it.b]) { q[0] = round4(q[0] + dx); q[1] = round4(q[1] + dy); } return; }
   if (kind === "area") it.points = it.points.map(p => [round4(p[0] + dx), round4(p[1] + dy)]);
   else { it.x = round4(it.x + dx); it.y = round4(it.y + dy); }
 }
@@ -2155,7 +2323,78 @@ function deleteSel() {
   pushHistory();
   const gone = new Set(items.map(x => x.it));
   S.areas = S.areas.filter(a => !gone.has(a)); S.labels = S.labels.filter(l => !gone.has(l)); S.symbols = S.symbols.filter(s => !gone.has(s));
+  S.dimlines = S.dimlines.filter(d => !gone.has(d));
   setSel(null); commit();
+}
+
+// ---------------------------------------------------------------- editing on the plan
+// Corner handles show on the one selected area. A wall's length is changed by
+// stretching, as in CAD: every corner at or beyond the wall's far end (measured
+// along the wall) moves with it, so square buildings stay square. Areas are
+// independent, so an attached addition doesn't follow; stretch it too.
+function selectedArea() { return picks.length === 1 && sel && sel.kind === "area" ? findSel() : null; }
+function handleAt(sx, sy) {
+  const a = selectedArea();
+  if (!a || !visible(a)) return null;
+  const T = (x, y) => w2s(view, W(), H(), x, y);
+  for (let i = 0; i < a.points.length; i++) { const [hx, hy] = T(...a.points[i]); if (Math.abs(hx - sx) <= 7 && Math.abs(hy - sy) <= 7) return i; }
+  return null;
+}
+function handlesSvg(T) {
+  const a = selectedArea();
+  if (!a || !visible(a)) return "";
+  return a.points.map((q, i) => {
+    const [x, y] = T(...q), on = activeVertex && activeVertex.id === a.id && activeVertex.i === i;
+    return `<rect x="${(x - 4.5).toFixed(1)}" y="${(y - 4.5).toFixed(1)}" width="9" height="9" fill="${on ? "#2563eb" : "#fff"}" stroke="#2563eb" stroke-width="1.5"/>`;
+  }).join("");
+}
+function setWallLength(a, i, newL) {
+  const p = a.points, n = p.length, A = p[i], B = p[(i + 1) % n], L = dist(A, B);
+  if (L < EPS || !(newL > 0)) return false;
+  const u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L], d = newL - L, edge = B[0] * u[0] + B[1] * u[1] - 1e-6;
+  a.points = p.map(q => q[0] * u[0] + q[1] * u[1] >= edge ? [round4(q[0] + u[0] * d), round4(q[1] + u[1] * d)] : q);
+  return true;
+}
+// Add a corner on straight wall i at point q; doors, windows and hidden
+// dimensions stay on the same stretch of wall.
+function insertCorner(a, i, q) {
+  const A = a.points[i], L1 = dist(A, q);
+  a.points.splice(i + 1, 0, q);
+  if (a.rise) a.rise.splice(i + 1, 0, 0);
+  a.hideDims = (a.hideDims || []).flatMap(h => h < i ? [h] : h === i ? [i, i + 1] : [h + 1]);
+  for (const o of a.openings || []) {
+    if (o.wall > i) o.wall++;
+    else if (o.wall === i && o.at > L1) { o.wall = i + 1; o.at = round4(o.at - L1); }
+  }
+}
+// Remove corner i: the two walls meeting there become one straight wall. Doors
+// and windows on those two walls are removed (the wall they sat on is gone).
+function removeCorner(a, i) {
+  const n = a.points.length;
+  if (a.closed ? n <= 3 : (i === 0 || i === n - 1 || n <= 2)) return { err: a.closed ? "An area needs at least three corners." : "Only a corner between two walls can be removed from a line." };
+  const prev = (i - 1 + n) % n, newIdx = w => w < i ? w : w - 1, merged = prev < i ? prev : n - 2;
+  const gone = (a.openings || []).filter(o => o.wall === prev || o.wall === i).length;
+  a.openings = (a.openings || []).filter(o => o.wall !== prev && o.wall !== i).map(o => Object.assign(o, { wall: newIdx(o.wall) }));
+  a.hideDims = (a.hideDims || []).filter(h => h !== prev && h !== i).map(newIdx);
+  a.points.splice(i, 1);
+  if (a.rise) { a.rise.splice(i, 1); a.rise[merged] = 0; }
+  return { gone };
+}
+// While dragging a corner: snap to other corners (not itself), then the grid;
+// Shift keeps the wall from the previous corner square.
+function snapCorner(a, i, w, square) {
+  let best = null, bd = 10 / view.zoom;
+  for (const b of visAreas()) b.points.forEach((q, j) => { if ((b !== a || j !== i) && dist(q, w) < bd) { bd = dist(q, w); best = q; } });
+  let q = best ? best.slice() : (() => { const g = parseFloat($("snap").value); return g > 0 ? [round4(Math.round(w[0] / g) * g), round4(Math.round(w[1] / g) * g)] : [round4(w[0]), round4(w[1])]; })();
+  if (square && !best) {
+    const n = a.points.length, pv = a.points[(i - 1 + n) % n];
+    if (a.closed || i > 0) q = Math.abs(q[0] - pv[0]) > Math.abs(q[1] - pv[1]) ? [q[0], pv[1]] : [pv[0], q[1]];
+  }
+  return q;
+}
+function wallNote(a, i) {
+  const p = a.points, n = p.length, walls = [(i - 1 + n) % n, i].filter(w => a.closed || (w >= 0 && w < n - 1));
+  return walls.map(w => fmtLen(dist(p[w], p[(w + 1) % n]))).join(" / ");
 }
 
 // ---------------------------------------------------------------- events: mouse
@@ -2185,16 +2424,34 @@ svg.addEventListener("mousedown", e => {
     }
     renderPanel(); render(); cmd.focus();
   } else if (tool === "select") {
+    // A corner handle of the selected area: drag to move it; Delete removes it.
+    const hi = handleAt(sx, sy);
+    if (hi !== null && !e.shiftKey) {
+      const a = selectedArea();
+      activeVertex = { id: a.id, i: hi };
+      pushHistory();
+      drag = { kind: "vertex", a, i: hi, moved: false };
+      status(`Corner ${hi + 1}: drag to move it (Shift keeps it square), or press Delete to remove it.`);
+      return render();
+    }
+    activeVertex = null;
     const h = hitTest(w);
     if (h && h.kind === "dim") {
-      // Clicking a dimension hides it (or shows it again): hidden ones stay faint on screen, absent from exports.
-      const a = S.areas.find(x => x.id === h.id);
-      pushHistory();
-      const hd = new Set(a.hideDims || []);
-      hd.has(h.wall) ? hd.delete(h.wall) : hd.add(h.wall);
-      a.hideDims = [...hd].sort((x, y) => x - y);
-      setSel({ kind: "area", id: a.id }); commit();
-      return status(hd.has(h.wall) ? "Dimension hidden (click it again to show it)." : "Dimension shown.", "ok");
+      // One click hides a dimension (or shows it again); a double-click edits it
+      // instead, so the click waits a moment to see which it is.
+      if (dimClickTimer) { clearTimeout(dimClickTimer); dimClickTimer = null; return; }
+      dimClickTimer = setTimeout(() => {
+        dimClickTimer = null;
+        const a = S.areas.find(x => x.id === h.id);
+        if (!a) return;
+        pushHistory();
+        const hd = new Set(a.hideDims || []);
+        hd.has(h.wall) ? hd.delete(h.wall) : hd.add(h.wall);
+        a.hideDims = [...hd].sort((x, y) => x - y);
+        setSel({ kind: "area", id: a.id }); commit();
+        status(hd.has(h.wall) ? "Dimension hidden (click it again to show it; double-click to change the length)." : "Dimension shown.", "ok");
+      }, 280);
+      return;
     }
     if (h && e.shiftKey) { togglePick({ kind: h.kind, id: h.id }); renderPanel(); return render(); }
     if (!h) {
@@ -2219,6 +2476,23 @@ svg.addEventListener("mousedown", e => {
     }
   } else if (tool === "opening") {
     placeOpening(w);
+  } else if (tool === "measure") {
+    let q = snapPoint(w).pt;
+    if (!measureStart) { measureStart = q; status("Now click the other end (Shift keeps it square)."); return render(); }
+    if (e.shiftKey) q = Math.abs(q[0] - measureStart[0]) > Math.abs(q[1] - measureStart[1]) ? [q[0], measureStart[1]] : [measureStart[0], q[1]];
+    if (dist(q, measureStart) < EPS) return;
+    pushHistory();
+    const d = { id: S.nextId++, a: measureStart, b: q, text: "", flip: false, level: viewLevel || undefined, page: curPage };
+    S.dimlines.push(d); measureStart = null;
+    setSel({ kind: "dimline", id: d.id }); commit();
+    status(`Dimension ${fmtLen(dist(d.a, d.b))}. Give it a label (e.g. Setback) under Selected, or click for another.`, "ok");
+  } else if (tool === "photo") {
+    pushHistory();
+    const q = snapPoint(w).pt, s = { id: S.nextId++, type: "photo", num: nextPhotoNum(), x: q[0], y: q[1], rot: 0, size: 1, level: viewLevel || undefined, page: curPage };
+    S.symbols.push(s); setSel({ kind: "symbol", id: s.id });
+    drag = { kind: "aim", s, moved: false };
+    commit();
+    status(`Photo ${s.num}: drag the way the camera faced, then let go.`);
   } else if (tool === "symbol") {
     pushHistory();
     const p = snapPoint(w).pt, s = { id: S.nextId++, type: curSym, x: p[0], y: p[1], rot: 0, size: 1, level: viewLevel || undefined, page: curPage };
@@ -2248,13 +2522,22 @@ window.addEventListener("mousemove", e => {
     $("coords").textContent = `${fmtNum(w[0], 2)}, ${fmtNum(w[1], 2)} ${S.units}`;
     hover = snapPoint(w);
   }
-  if (!drag) { if (tool === "draw" || tool === "calib") render(); return; }
+  if (!drag) { if (tool === "draw" || tool === "calib" || tool === "measure") render(); return; }
   if (drag.kind === "pan") {
     view.cx = drag.cx - (sx - drag.sx) / view.zoom; view.cy = drag.cy + (sy - drag.sy) / view.zoom;
   } else if (drag.kind === "underlay") {
     underlay.x = drag.x + w[0] - drag.w0[0]; underlay.y = drag.y + w[1] - drag.w0[1];
   } else if (drag.kind === "fence") {
     drag.w1 = w;
+  } else if (drag.kind === "aim") {
+    const dx = w[0] - drag.s.x, dy = w[1] - drag.s.y;
+    if (Math.hypot(dx, dy) * view.zoom > 6) {
+      drag.s.rot = round4((((Math.atan2(dy, dx) * 180 / Math.PI - 90) % 360) + 360) % 360);
+      drag.moved = true; status(`Photo ${drag.s.num} facing ${facingText(drag.s)}.`);
+    }
+  } else if (drag.kind === "vertex") {
+    const q = snapCorner(drag.a, drag.i, w, e.shiftKey);
+    if (dist(q, drag.a.points[drag.i]) > EPS) { drag.a.points[drag.i] = q; drag.moved = true; status(`Walls: ${wallNote(drag.a, drag.i)}`); }
   } else if (drag.kind === "item" || drag.kind === "label") {
     const g = parseFloat($("snap").value) || 0;
     let dx = w[0] - drag.w0[0], dy = w[1] - drag.w0[1];
@@ -2274,10 +2557,12 @@ window.addEventListener("mousemove", e => {
   }
 });
 window.addEventListener("mouseup", () => {
-  if (drag && (drag.kind === "item" || drag.kind === "label")) {
+  if (drag && (drag.kind === "item" || drag.kind === "label" || drag.kind === "vertex")) {
     if (!drag.moved) history.pop();   // a plain click is not an edit
     commit();
+    if (drag.kind === "vertex" && drag.moved) status(`Corner moved. Walls: ${wallNote(drag.a, drag.i)}. ${drag.a.closed ? closingNote(drag.a.points) : ""}`, "ok");
   }
+  if (drag && drag.kind === "aim") { commit(); status(`Photo ${drag.s.num} facing ${facingText(drag.s)}. Click for the next one.`, "ok"); }
   if (drag && drag.kind === "fence") {
     // Fence: everything wholly inside the box is selected (Shift adds to the selection).
     const b = bbox([drag.w0, drag.w1]), inside = p => p[0] >= b.x0 && p[0] <= b.x1 && p[1] >= b.y0 && p[1] <= b.y1;
@@ -2285,6 +2570,7 @@ window.addEventListener("mouseup", () => {
       for (const a of visAreas()) if (outline(a).every(inside) && !isPicked("area", a.id)) picks.push({ kind: "area", id: a.id });
       for (const l of visLabels()) if (inside([l.x, l.y]) && !isPicked("label", l.id)) picks.push({ kind: "label", id: l.id });
       for (const s of visSymbols()) if (inside([s.x, s.y]) && !isPicked("symbol", s.id)) picks.push({ kind: "symbol", id: s.id });
+      for (const d of visDimlines()) if (inside(d.a) && inside(d.b) && !isPicked("dimline", d.id)) picks.push({ kind: "dimline", id: d.id });
       sel = sel && isPicked(sel.kind, sel.id) ? sel : picks[0] || null;
       if (picks.length > 1) status(`${picks.length} items selected: drag, arrow keys, Delete, Ctrl+C, Rotate… act on all of them.`);
     }
@@ -2293,6 +2579,37 @@ window.addEventListener("mouseup", () => {
   drag = null; svg.classList.remove("pan");
 });
 svg.addEventListener("mouseleave", () => { hover = null; render(); });
+svg.addEventListener("dblclick", e => {
+  if (tool !== "select") return;
+  const r = svg.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, w = s2w(sx, sy);
+  const h = hitTest(w);
+  if (dimClickTimer) { clearTimeout(dimClickTimer); dimClickTimer = null; }
+  if (h && h.kind === "dim") {
+    const a = S.areas.find(x => x.id === h.id), n = a.points.length, L = dist(a.points[h.wall], a.points[(h.wall + 1) % n]);
+    const txt = prompt(`New length for this wall (now ${fmtLen(L)}). The corners beyond it move with it:`, fmtLen(L).replace(/'$/, ""));
+    if (txt === null) return;
+    const v = parseLen(txt.trim().replace(/\s+/g, ""));
+    if (!(v > 0)) return status(`"${txt}" isn't a length (e.g. 42, 42'6).`, "bad");
+    pushHistory();
+    setWallLength(a, h.wall, v);
+    setSel({ kind: "area", id: a.id }); commit();
+    return status(`Wall now ${fmtLen(v)}. ${a.closed ? closingNote(a.points) : ""}`, "ok");
+  }
+  // Double-click a straight wall of the selected area: add a corner there.
+  const a = selectedArea();
+  if (!a) return;
+  const hit = nearestWall(w, 8 / view.zoom);
+  if (!hit || hit.a !== a) return;
+  const g = parseFloat($("snap").value) || 0, at = g > 0 ? Math.round(hit.at / g) * g : hit.at;
+  if (at < 1e-3 || at > hit.L - 1e-3) return status("That's a corner already: double-click along the wall.", "bad");
+  const A = a.points[hit.wall], B = a.points[(hit.wall + 1) % a.points.length];
+  const q = [round4(A[0] + (B[0] - A[0]) * at / hit.L), round4(A[1] + (B[1] - A[1]) * at / hit.L)];
+  pushHistory();
+  insertCorner(a, hit.wall, q);
+  activeVertex = { id: a.id, i: hit.wall + 1 };
+  commit();
+  status(`Corner added ${fmtLen(at)} along the wall: drag it to make a jog, or press Delete to remove it.`, "ok");
+});
 
 // ---------------------------------------------------------------- events: panel
 function onSelEdit(id, fn, evt = "input") {
@@ -2310,10 +2627,11 @@ onSelEdit("sGroup", (a, el) => a.group = el.value);
 onSelEdit("sCat", (a, el) => {
   // A name still at its default follows the category ("Main floor 2" -> "Garage").
   const wasDefault = new RegExp(`^${CAT[a.category].label.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}( \\d+)?$`).test(a.name);
-  a.category = el.value; a.included = CAT[el.value].inc; a.factor = CAT[el.value].factor ?? 1; delete el.dataset.dirty;
+  a.category = el.value; a.included = CAT[el.value].inc; a.factor = CAT[el.value].factor ?? 1; delete a.foot; delete el.dataset.dirty;
   if (wasDefault) { const others = S.areas.filter(x => x !== a); a.name = defaultName(a, others); }
 }, "change");
 onSelEdit("sInc", (a, el) => { a.included = el.checked; delete el.dataset.dirty; }, "change");
+onSelEdit("sFoot", (a, el) => { a.foot = el.checked; delete el.dataset.dirty; }, "change");
 onSelEdit("sDims", (a, el) => { a.dims = el.checked; delete el.dataset.dirty; }, "change");
 onSelEdit("sFactor", (a, el) => { const v = parseFloat(el.value); if (v >= 0) a.factor = v; });
 onSelEdit("sNeg", (a, el) => { a.negative = el.checked; delete el.dataset.dirty; }, "change");
@@ -2378,6 +2696,10 @@ $("sDup").addEventListener("click", () => {
 $("sDel").addEventListener("click", deleteSel);
 $("lDel").addEventListener("click", deleteSel);
 $("yDel").addEventListener("click", deleteSel);
+$("mDel").addEventListener("click", deleteSel);
+onSelEdit("mText", (d, el) => d.text = el.value);
+$("mFlip").onclick = () => { const d = findSel(); if (!d || sel.kind !== "dimline") return; pushHistory(); d.flip = !d.flip; commit(); };
+onSelEdit("yNum", (s, el) => { const v = parseInt(el.value, 10); if (v > 0) s.num = v; });
 onSelEdit("yType", (s, el) => { s.type = el.value; delete el.dataset.dirty; }, "change");
 onSelEdit("yRot", (s, el) => { const v = parseFloat(el.value); if (isFinite(v)) s.rot = v; });
 onSelEdit("ySize", (s, el) => { const v = parseFloat(el.value); if (v >= 10) s.size = v / 100; });
@@ -2445,6 +2767,8 @@ $("tSelect").onclick = () => { if (draw) { draw = null; } setTool("select"); };
 $("tLabel").onclick = () => setTool("label");
 $("tOpening").onclick = () => setTool("opening");
 $("tSymbol").onclick = () => setTool("symbol");
+$("tMeasure").onclick = () => { setTool("measure"); status("Measure: click one end, then the other (snaps to corners; Shift keeps it square)."); };
+$("tPhoto").onclick = () => { setTool("photo"); status(`Photo: click where photo ${nextPhotoNum()} was taken and drag the way it faces.`); };
 $("tCalib").onclick = () => setTool("calib");
 $("tMoveU").onclick = () => setTool("moveU");
 $("bUndo").onclick = undo; $("bRedo").onclick = redo; $("bFit").onclick = fit;
@@ -2473,6 +2797,7 @@ $("units").onchange = () => {
     if (a.ceilings) a.ceilings = a.ceilings.map(v => round4(v * k));
   }
   for (const l of S.labels.concat(S.symbols)) [l.x, l.y] = sc([l.x, l.y]);
+  for (const d of S.dimlines) { d.a = sc(d.a); d.b = sc(d.b); }
   if (underlay) { underlay.x *= k; underlay.y *= k; underlay.scale *= k; }
   pen = sc(pen); view.cx *= k; view.cy *= k; view.zoom /= k;
   S.units = to; $("snap").value = to === "m" ? "0.1" : "1"; $("dimDec").value = to === "m" ? "2" : "1"; $("exScale").value = "";
@@ -2582,20 +2907,45 @@ $("bRotate").onclick = () => {
   const txt = prompt("Rotate by how many degrees? (positive = counter-clockwise, e.g. 90, -12.5)", "90");
   const deg = parseFloat(txt);
   if (!isFinite(deg) || !deg) return;
-  const items = picks.length ? pickedItems() : visAreas().map(it => ({ it, kind: "area" })).concat(visLabels().map(it => ({ it, kind: "label" })), visSymbols().map(it => ({ it, kind: "symbol" })));
+  const items = picks.length ? pickedItems() : visAreas().map(it => ({ it, kind: "area" })).concat(visLabels().map(it => ({ it, kind: "label" })), visSymbols().map(it => ({ it, kind: "symbol" })), visDimlines().map(it => ({ it, kind: "dimline" })));
   if (!items.length) return status("Nothing to rotate.", "bad");
-  const pts = items.flatMap(({ it, kind }) => kind === "area" ? it.points : [[it.x, it.y]]), b = bbox(pts);
+  const pts = items.flatMap(({ it, kind }) => itemPoints(it, kind)), b = bbox(pts);
   const c = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2], r = deg * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
   const rot = p => [round4(c[0] + (p[0] - c[0]) * cs - (p[1] - c[1]) * sn), round4(c[1] + (p[0] - c[0]) * sn + (p[1] - c[1]) * cs)];
   pushHistory();
   for (const { it, kind } of items) {
     if (kind === "area") { it.points = it.points.map(rot); const o = it.labelOffset; it.labelOffset = [o[0] * cs - o[1] * sn, o[0] * sn + o[1] * cs]; }
+    else if (kind === "dimline") { it.a = rot(it.a); it.b = rot(it.b); }
     else { [it.x, it.y] = rot([it.x, it.y]); if (kind === "symbol") it.rot = (((it.rot || 0) + deg) % 360 + 360) % 360; }
   }
   if (!picks.length && underlay) { [underlay.x, underlay.y] = rot([underlay.x, underlay.y]); underlay.rot -= deg; $("uRot").value = underlay.rot; }
   commit();
   status(`Rotated ${picks.length ? "the selection" : "the sketch"} ${fmtNum(deg, 2)}°.`, "ok");
 };
+
+// ---------------------------------------------------------------- recover
+$("bRecover").onclick = () => {
+  const list = recentList();
+  $("recoverTable").innerHTML = list.length
+    ? `<tr><th>Sketch</th><th>Areas</th><th>Last change</th><th></th></tr>` + list.map((r, i) =>
+      `<tr><td>${esc(r.label)}${r.uid === S.uid ? ' <span class="hint">(on screen)</span>' : ""}</td><td class="n">${r.areas}</td>` +
+      `<td>${new Date(r.saved).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}</td>` +
+      `<td><button data-rec="${i}"${r.uid === S.uid ? " disabled" : ""}>Open</button></td></tr>`).join("")
+    : `<tr><td class="hint">Nothing kept yet (or this browser has storage turned off).</td></tr>`;
+  $("recover").hidden = false;
+};
+$("recoverClose").onclick = () => { $("recover").hidden = true; cmd.focus(); };
+$("recoverTable").addEventListener("click", e => {
+  const i = e.target.dataset.rec;
+  if (i === undefined) return;
+  const r = recentList()[+i];
+  if (!r) return;
+  pushHistory();
+  S = Object.assign(emptySketch(), JSON.parse(r.data));
+  draw = null; setSel(null); viewLevel = ""; afterLoad(); fit();
+  $("recover").hidden = true;
+  status(`Recovered ${r.label}. Save it to keep it.`, "ok");
+});
 
 // ---------------------------------------------------------------- pages
 function goPage(id) {
@@ -2623,13 +2973,13 @@ $("bPageRen").onclick = () => {
 $("bPageDel").onclick = () => {
   if (S.pages.length < 2) return;
   const p = S.pages.find(x => x.id === curPage);
-  const on = [...S.areas, ...S.labels, ...S.symbols].filter(x => pageOf(x) === p.id).length;
+  const on = [...S.areas, ...S.labels, ...S.symbols, ...S.dimlines].filter(x => pageOf(x) === p.id).length;
   if (on && !confirm(`Delete page "${p.name}" and the ${on} item(s) on it? (Undo can bring it back.)`)) return;
   pushHistory();
   const keep = x => pageOf(x) !== p.id;
   // Items with no page belong to the first page: pin them before the first page can change.
-  for (const x of [...S.areas, ...S.labels, ...S.symbols]) x.page = pageOf(x);
-  S.areas = S.areas.filter(keep); S.labels = S.labels.filter(keep); S.symbols = S.symbols.filter(keep);
+  for (const x of [...S.areas, ...S.labels, ...S.symbols, ...S.dimlines]) x.page = pageOf(x);
+  S.areas = S.areas.filter(keep); S.labels = S.labels.filter(keep); S.symbols = S.symbols.filter(keep); S.dimlines = S.dimlines.filter(keep);
   S.pages = S.pages.filter(x => x !== p);
   curPage = S.pages[0].id; commit(); goPage(curPage);
 };
@@ -2646,7 +2996,7 @@ function copySel() {
 }
 function pasteClip() {
   if (!clip || !clip.length) return status("Nothing copied.", "bad");
-  const pts = clip.flatMap(({ kind, it }) => kind === "area" ? it.points : [[it.x, it.y]]), b = bbox(pts);
+  const pts = clip.flatMap(({ kind, it }) => itemPoints(it, kind)), b = bbox(pts);
   const toLevel = viewLevel && clip.some(({ it }) => (it.level || "") !== viewLevel);
   // Onto another page or level the copy lands in place; on the same one, beside the original.
   const toPage = clip.some(({ it }) => pageOf(it) !== curPage);
@@ -2655,12 +3005,14 @@ function pasteClip() {
   picks = [];
   for (const { kind, it } of JSON.parse(JSON.stringify(clip))) {
     it.id = S.nextId++; it.page = curPage;
+    if (kind === "symbol" && it.type === "photo") it.num = nextPhotoNum();
     if (toLevel && (kind !== "area" || it.category !== "site")) it.level = viewLevel;
     if (kind === "area") {
       it.points = it.points.map(p => [round4(p[0] + off), p[1]]);
       if (!toLevel && !toPage) it.name += " (copy)";
       S.areas.push(it);
-    } else { it.x = round4(it.x + off); listOf(kind).push(it); }
+    } else if (kind === "dimline") { it.a[0] = round4(it.a[0] + off); it.b[0] = round4(it.b[0] + off); S.dimlines.push(it); }
+    else { it.x = round4(it.x + off); listOf(kind).push(it); }
     picks.push({ kind, id: it.id });
   }
   sel = picks[0];
