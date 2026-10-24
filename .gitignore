@@ -1,0 +1,6 @@
+# Reference material: the Apex manual is 107 MB (over GitHub's 100 MB limit) and isn't ours to version.
+Apex Sketch 6 Manual.pdf
+
+# Sketches and exports made while testing belong in job folders, not here.
+*.sketch.json
+*areas.json

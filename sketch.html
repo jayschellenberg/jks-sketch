@@ -1,0 +1,2133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JKS Sketch</title>
+<!--
+  JKS Sketch — re-enter hand-drawn field sketches as clean, dimensioned plans.
+  One self-contained file: no server, no install, no network. Open it in Edge
+  or Chrome. See tools/sketch/README.md for the command language and for how
+  the outputs are filed into a job folder.
+-->
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1f2937; --muted: #6b7280;
+    --line: #d1d5db; --accent: #2563eb; --bad: #b91c1c; --ok: #047857;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font: 13px/1.4 "Segoe UI", Arial, Helvetica, sans-serif; color: var(--ink);
+    background: var(--bg); display: grid; height: 100vh;
+    grid-template-rows: auto 1fr auto; grid-template-columns: 1fr 340px;
+    grid-template-areas: "top top" "stage side" "cmd side";
+  }
+  header {
+    grid-area: top; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
+    padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header .grp { display: flex; gap: 4px; align-items: center; }
+  header .grp + .grp { border-left: 1px solid var(--line); padding-left: 10px; }
+  header strong { margin-right: 4px; }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  button {
+    background: #fff; border: 1px solid var(--line); border-radius: 4px;
+    padding: 3px 8px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #stage { grid-area: stage; position: relative; overflow: hidden; background: #fff; }
+  #svg { width: 100%; height: 100%; display: block; cursor: crosshair; user-select: none; }
+  #svg.select { cursor: default; }
+  #svg.pan { cursor: grabbing; }
+  #coords {
+    position: absolute; right: 8px; bottom: 6px; color: var(--muted);
+    background: rgba(255,255,255,.85); padding: 1px 6px; border-radius: 3px; pointer-events: none;
+  }
+  aside {
+    grid-area: side; overflow-y: auto; background: var(--panel);
+    border-left: 1px solid var(--line); padding: 8px 10px 20px;
+  }
+  aside h3 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+    margin: 14px 0 6px; border-bottom: 1px solid var(--line); padding-bottom: 3px;
+  }
+  aside h3:first-child { margin-top: 2px; }
+  .row { display: grid; grid-template-columns: 92px 1fr; gap: 6px; align-items: center; margin: 4px 0; }
+  .row input[type=text], .row select, .row input[type=number] { width: 100%; padding: 2px 4px; }
+  textarea { width: 100%; min-height: 54px; font-family: Consolas, monospace; font-size: 12px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .hint { color: var(--muted); font-size: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { text-align: left; padding: 2px 4px; border-bottom: 1px solid #eee; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.sel td { background: #eff6ff; }
+  tr.total td { font-weight: 600; border-top: 1px solid var(--line); }
+  tbody tr[data-id] { cursor: pointer; }
+  #calcs { font-size: 12px; font-variant-numeric: tabular-nums; }
+  #calcs details { margin-left: 12px; }
+  #calcs > details { margin-left: 0; }
+  #calcs summary { cursor: pointer; padding: 1px 0; }
+  #calcs summary.sel { background: #eff6ff; }
+  #calcs .kv { margin-left: 26px; color: var(--muted); }
+  #calcs .neg { color: var(--bad); }
+  #calcSum { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 4px; }
+  #calcSum div { display: flex; justify-content: space-between; }
+  footer {
+    grid-area: cmd; display: flex; gap: 8px; align-items: center;
+    padding: 6px 10px; background: var(--panel); border-top: 1px solid var(--line);
+  }
+  footer label { font-weight: 600; }
+  #cmd { flex: 0 1 420px; font-family: Consolas, monospace; font-size: 14px; padding: 4px 6px; }
+  #cmd.bad { border-color: var(--bad); outline-color: var(--bad); }
+  #status { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status.bad { color: var(--bad); }
+  #status.ok { color: var(--ok); }
+  #help {
+    position: fixed; inset: 40px; background: #fff; border: 1px solid var(--line);
+    border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.2); padding: 16px 22px;
+    overflow: auto; z-index: 10;
+  }
+  #help code { background: #f3f4f6; padding: 0 3px; border-radius: 3px; }
+  #help td { vertical-align: top; padding: 3px 8px; }
+  #lib {
+    position: fixed; inset: 40px max(16px, 10%); background: #fff; border: 1px solid var(--line);
+    border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.2); padding: 16px 22px;
+    overflow: auto; z-index: 10;
+  }
+  #lib td input[type=text] { width: 100%; }
+  #lib td input[data-f=label] { min-width: 170px; }
+  #lib td input[type=number] { width: 64px; }
+  #fence { fill: rgba(37,99,235,.08); stroke: #2563eb; stroke-dasharray: 4 3; }
+  #printArea { display: none; }
+  @media print {
+    body { display: block; background: #fff; }
+    header, #stage, aside, footer, #help, #lib { display: none !important; }
+    #printArea { display: block; }
+    /* Fit to the page unless a scale is set; a scaled plan prints at its own size in inches. */
+    #printArea svg:not([data-scaled]) { width: 100%; height: auto; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="grp"><strong>JKS Sketch</strong>
+    <button id="bNew" title="Start a new sketch">New</button>
+    <button id="bOpen" title="Open a .sketch.json file">Open</button>
+    <button id="bSave" title="Save the editable .sketch.json">Save</button>
+  </div>
+  <div class="grp">
+    <button id="tDraw" class="on" title="Draw: click sets the start point, typed vectors draw the walls">Draw</button>
+    <button id="tSelect" title="Select: click an area to edit; drag to move it">Select</button>
+    <button id="tLabel" title="Label: click to place free text">Label</button>
+  </div>
+  <div class="grp">
+    <button id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
+    <button id="bRedo" title="Redo (Ctrl+Y)">Redo</button>
+    <button id="bFit" title="Zoom to fit">Fit</button>
+    <button id="bRotate" title="Rotate the selection, or the whole sketch when nothing is selected, by any angle">Rotate…</button>
+  </div>
+  <div class="grp">Show:
+    <select id="viewLevel" title="Show one level only: the others are hidden on screen and left out of the export"><option value="">All levels</option></select>
+  </div>
+  <div class="grp">Underlay:
+    <button id="bImg" title="Load a photo or scan of the hand sketch to trace over">Image…</button>
+    <button id="tCalib" title="Click two points on the image a known distance apart">Calibrate</button>
+    <button id="tMoveU" title="Drag the image into place">Move</button>
+    <input id="uOpacity" type="range" min="0" max="100" value="40" title="Image opacity" style="width:70px">
+    <input id="uRot" type="number" step="0.5" value="0" title="Image rotation (degrees)" style="width:58px">°
+    <button id="bClearU" title="Remove the underlay image">✕</button>
+  </div>
+  <div class="grp">
+    <select id="units" title="Units"><option value="ft">feet</option><option value="m">metres</option></select>
+    <select id="dimFmt" title="Dimension format"><option value="dec">40.5'</option><option value="ftin">40'6"</option></select>
+    <select id="dimDec" title="Decimal places on dimensions"><option value="0">0</option><option value="1" selected>0.0</option><option value="2">0.00</option><option value="3">0.000</option></select>
+    <label title="Show dimensions. With Select, click one to hide or show it"><input id="showDims" type="checkbox" checked> dims</label>
+  </div>
+  <div class="grp">Label:
+    <label title="Area code from the library (GLA1, GAR…)"><input id="shCode" type="checkbox"> code</label>
+    <label><input id="shName" type="checkbox" checked> name</label>
+    <label><input id="shArea" type="checkbox" checked> size</label>
+    <button id="bLib" title="Area library: codes, labels, counts toward building area, default factors, fills">Library…</button>
+  </div>
+  <div class="grp">Export:
+    <button id="bSvg">SVG</button>
+    <button id="bPng">PNG</button>
+    <button id="bAreas" title="Areas for the job record">areas.json</button>
+    <button id="bPrint">Print</button>
+    <label title="Print the area table under the drawing"><input id="exTable" type="checkbox" checked> table</label>
+    <label title="Print scale. Blank = fit the page"><span id="scaleLbl">1" =</span> <input id="exScale" type="number" min="0" step="any" placeholder="fit" style="width:52px"><span id="scaleUnit">'</span></label>
+    <select id="exPaper" title="Paper for Print"><option value="letter">Letter</option><option value="legal">Legal</option><option value="11in 17in">Tabloid</option><option value="A4">A4</option><option value="A3">A3</option></select>
+    <select id="exOrient" title="Orientation for Print"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
+  </div>
+  <div class="grp"><button id="bHelp">Help (F1)</button></div>
+</header>
+
+<div id="stage"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg><div id="coords"></div></div>
+
+<aside>
+  <h3>Sketch</h3>
+  <div class="row"><label for="iTitle">Title</label><input id="iTitle" type="text"></div>
+  <div class="row"><label for="iAddress">Property</label><input id="iAddress" type="text"></div>
+  <div class="row"><label for="iFile">File no.</label><input id="iFile" type="text"></div>
+  <div class="row"><label for="iPreparer">Prepared by</label><input id="iPreparer" type="text"></div>
+  <div class="row"><label for="iDate">Date</label><input id="iDate" type="text"></div>
+
+  <h3>Next area</h3>
+  <div class="row"><label for="nBuilding">Building</label><input id="nBuilding" type="text" value="Building 1"></div>
+  <div class="row"><label for="nLevel">Level</label><input id="nLevel" type="text" value="Main"></div>
+  <div class="row"><label for="nCat">Category</label><select id="nCat"></select></div>
+  <div class="row"><label for="nGroup">Combine as</label><input id="nGroup" type="text" list="groupList" placeholder="blank = separate"></div>
+  <div class="row"><label for="snap">Grid snap</label><input id="snap" type="number" step="0.1" min="0" value="1"></div>
+  <div class="row"><label for="nLabel">Label text</label><input id="nLabel" type="text" list="labelList" placeholder="for the Label tool, e.g. Office"></div>
+
+  <h3>Selected</h3>
+  <div id="selNone" class="hint">Nothing selected. Use the Select tool, or click a row in the table below.</div>
+  <div id="selArea" hidden>
+    <div class="row"><label for="sName">Name</label><input id="sName" type="text"></div>
+    <div class="row"><label for="sBuilding">Building</label><input id="sBuilding" type="text"></div>
+    <div class="row"><label for="sLevel">Level</label><input id="sLevel" type="text"></div>
+    <div class="row"><label for="sCat">Category</label><select id="sCat"></select></div>
+    <div class="row"><label for="sGroup">Combine as</label><input id="sGroup" type="text" list="groupList" placeholder="blank = its own total"></div>
+    <div class="row"><label for="sInc">In bldg area</label><span><input id="sInc" type="checkbox"> counts toward building area</span></div>
+    <div class="row"><label for="sFactor">Factor</label><span><input id="sFactor" type="number" step="0.05" min="0" style="width:70px"> <span class="hint">net = base × factor</span></span></div>
+    <div class="row"><label for="sNeg">Negative</label><span><input id="sNeg" type="checkbox"> <span class="hint">deducts (stairwell, atrium)</span></span></div>
+    <div class="row"><label for="sDims">Show dims</label><span><input id="sDims" type="checkbox"> <span class="hint">off for a shared wall</span></span></div>
+    <div class="row"><label>Size</label><span id="sSize"></span></div>
+    <label for="sVec" class="hint">Vectors from the first corner — edit a dimension and Apply:</label>
+    <textarea id="sVec" spellcheck="false"></textarea>
+    <div class="btns">
+      <button id="sApply">Apply vectors</button>
+      <button id="sRot" title="Rotate 90° counter-clockwise">Rotate 90°</button>
+      <button id="sFlipH" title="Mirror left-right">Mirror ↔</button>
+      <button id="sFlipV" title="Mirror up-down">Mirror ↕</button>
+      <button id="sDup">Duplicate</button>
+      <button id="sDel">Delete</button>
+    </div>
+  </div>
+  <div id="selLabel" hidden>
+    <div class="row"><label for="lText">Text</label><input id="lText" type="text" list="labelList"></div>
+    <div class="row"><label for="lSize">Size (px)</label><input id="lSize" type="number" min="6" max="48" value="12"></div>
+    <div class="btns"><button id="lDel">Delete label</button></div>
+  </div>
+
+  <h3>Areas</h3>
+  <div id="summary"></div>
+
+  <h3>Area calculations</h3>
+  <div class="btns" style="margin:0 0 4px"><button id="cExpand">Expand all</button><button id="cCollapse">Collapse all</button></div>
+  <div id="calcs"></div>
+</aside>
+
+<footer>
+  <label for="cmd">Command</label>
+  <input id="cmd" autocomplete="off" spellcheck="false" placeholder="e.g. R40 D28 L40 C   (F1 for help)">
+  <span id="status"></span>
+</footer>
+
+<div id="help" hidden>
+  <h2 style="margin-top:0">JKS Sketch — command language</h2>
+  <p>Click the canvas to set the starting corner (it snaps to existing corners, then to the grid), then type
+  walls into the command line and press <b>Enter</b>. Up is north on the page. Several commands can be typed on one line.</p>
+  <table>
+    <tr><td><code>R40</code> <code>L12.5</code> <code>U28</code> <code>D6</code></td><td>Wall right / left / up / down by that length.</td></tr>
+    <tr><td><code>R40'6</code> <code>R40'6"</code> <code>R40-6</code></td><td>Feet and inches (40 ft 6 in). In metre mode this is converted to metres.</td></tr>
+    <tr><td><code>R40'6-1/2"</code> <code>R40'1/2</code></td><td>Fractional inches (40 ft 6½ in, 40 ft ½ in). Decimal feet work too: <code>R40.54</code>.</td></tr>
+    <tr><td><code>R10U5</code></td><td>Diagonal wall: 10 right and 5 up in a single wall (a bay, a clipped corner).</td></tr>
+    <tr><td><code>R40~5</code> <code>R40~-5</code></td><td>Curved wall: 40 corner to corner, the middle of the curve 5 out of the room (<code>~-5</code> bows into it). On an open line, + bows to the left.</td></tr>
+    <tr><td><code>R40~r25</code> <code>C~r20</code></td><td>Curved wall by radius (25) instead of rise. Any wall can curve, including the closing one: <code>C~5</code>. A half-circle bay: <code>R12~6</code>.</td></tr>
+    <tr><td><code>R20~a31.4</code> <code>R20~d90</code></td><td>Curved wall by arc length (measured along the curve) or by arc angle (degree of curvature). <code>R12~d180</code> is a half circle.</td></tr>
+    <tr><td><code>17&gt;45</code> <code>17&lt;30</code> <code>17&gt;</code></td><td>Turn: 17 long, turning right (<code>&gt;</code>) or left (<code>&lt;</code>) 45° off the line of the previous wall. No angle = 90°. Walls at odd angles without trigonometry.</td></tr>
+    <tr><td><code>U=</code> <code>L=</code></td><td>Run up (left…) until level with the start, so the closing wall comes out square. For a field sketch with one dimension missing.</td></tr>
+    <tr><td><code>U*</code> <code>R*</code></td><td>Run up (right…) until the wall meets an existing wall, or one of this area's own.</td></tr>
+    <tr><td><code>CW</code></td><td>Close along existing walls: from the last corner, follow the walls already drawn back to the start. An addition needs only its own walls: start on the building (click a corner, or <code>mR10</code>), type the new walls, end on the building, <code>CW</code>. The traced walls' dimensions are hidden, since the building already shows them.</td></tr>
+    <tr><td><code>20@135</code></td><td>Wall of length 20 at 135° (0° = right, 90° = up, counter-clockwise).</td></tr>
+    <tr><td><code>N45-30E120.5</code></td><td>Survey bearing N 45°30′ E, 120.5 long (for lot lines). <code>S12E</code>, <code>N89-59-30W</code> etc.</td></tr>
+    <tr><td><code>mR10</code> <code>mU4</code> <code>m3@45</code></td><td>Move the start point without drawing — e.g. a garage that starts 10 ft along the house wall.</td></tr>
+    <tr><td><code>C</code></td><td>Close back to the start. The status bar reports the closing wall so a sketch that doesn't close is caught.</td></tr>
+    <tr><td><code>E</code></td><td>End as an open line (a fence, a lot line, a wall that is not a room).</td></tr>
+    <tr><td><code>25.5</code> then <b>→</b></td><td>Number-pad drawing: type a length and press an arrow key; the wall is drawn at once.</td></tr>
+    <tr><td><b>Enter</b> on an empty line</td><td>Close the area (3+ corners).</td></tr>
+    <tr><td><b>Backspace</b> on an empty line</td><td>Remove the last wall.</td></tr>
+    <tr><td><b>Esc</b></td><td>Cancel the area being drawn / clear the selection.</td></tr>
+    <tr><td><b>Ctrl+Z</b> / <b>Ctrl+Y</b></td><td>Undo / redo.</td></tr>
+    <tr><td><b>Arrows</b> (empty line)</td><td>Nudge the selection by the grid snap; Shift = ×10.</td></tr>
+    <tr><td><b>Delete</b> (empty line)</td><td>Delete the selection.</td></tr>
+    <tr><td><b>Ctrl+A</b> / <b>Ctrl+C</b> / <b>Ctrl+V</b></td><td>Select everything shown / copy / paste. With one level shown, paste puts the copy on that level in place: copy the main floor, show Upper, paste.</td></tr>
+    <tr><td>Select tool</td><td>Click to select; <b>Shift+click</b> adds; drag on empty space draws a fence around what to select. Click a dimension to hide it (or show it again).</td></tr>
+    <tr><td>Mouse wheel / right-drag</td><td>Zoom / pan. In Draw mode you can also click out corners; hold Shift to keep a wall square.</td></tr>
+  </table>
+  <h3>Levels, library, labels</h3>
+  <p><b>Show</b> picks one level: the others are hidden, new areas go on that level, and SVG/PNG/Print export just that level.
+  <b>Library…</b> edits the area categories (code, label, counts toward building area, default factor, fill). <b>Label</b> chooses
+  what each area's label shows. <b>Interior / fence line</b> is a category for lines that aren't measured; an open line (<code>E</code>)
+  becomes one. <b>Label text</b> in the panel lets the Label tool place a room name with one click. <b>Rotate…</b> turns the selection,
+  or the whole sketch, by any angle.</p>
+  <h3>Separate or combined square footage</h3>
+  <p>Every area shows its own size. To report adjoining areas as one total, give them the same <b>Combine as</b> name
+  (e.g. <code>GLA</code>): the plan then shows each one's name and a single combined total, and the table and
+  <code>areas.json</code> carry the combined figure as well as each part. Leave it blank to keep an area separate.
+  Set <b>Combine as</b> under <i>Next area</i> to apply it to everything you draw next.</p>
+  <h3>Tracing a hand sketch</h3>
+  <p><b>Image…</b> loads a photo of the field sketch under the drawing. <b>Calibrate</b>: click both ends of a wall whose length you know, then type that length — the image is scaled to match. <b>Move</b> drags it into place; the ° box rotates it. The underlay is never exported.</p>
+  <h3>Outputs</h3>
+  <p><b>Save</b> writes an editable <code>.sketch.json</code>. <b>SVG</b>/<b>PNG</b>/<b>Print</b> give the clean plan for Schedule B.
+  Leave the scale box blank to fit the page, or enter one (<code>1" = 10'</code>, or <code>1:100</code> in metres) to print to scale;
+  Paper and orientation set the print page, and the status bar warns when the plan won't fit. <b>areas.json</b> records every area with building, level, category and size in both sq ft and m². File all of them into the job's <code>dropzone/</code>.</p>
+  <p><button id="bHelpClose">Close</button></p>
+</div>
+
+<div id="lib" hidden>
+  <h2 style="margin-top:0">Area library</h2>
+  <p class="hint">The categories areas are drawn in. <b>Code</b> can show on the plan (Label: code). <b>Counts</b> and <b>Factor</b>
+  are what a new area of that category starts with; each area can still be changed on its own. Changes apply to this sketch;
+  <b>Save as my default</b> makes new sketches start with this list too.</p>
+  <table id="libTable"></table>
+  <div class="btns">
+    <button id="libAdd">Add category</button>
+    <button id="libSaveDef">Save as my default</button>
+    <button id="libReset">Reset to built-in</button>
+    <button id="libClose">Close</button>
+  </div>
+</div>
+<datalist id="groupList"></datalist>
+<datalist id="labelList"></datalist>
+<div id="printArea"></div>
+<input id="fOpen" type="file" accept=".json,application/json" hidden>
+<input id="fImg" type="file" accept="image/*" hidden>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------- constants
+// The area library (Apex's Area Definitions): each category has a short code
+// for the plan, a label, whether it counts toward building area, a default
+// factor and a fill. A sketch carries its own copy in S.cats so a saved file
+// always reopens the same; "Save as my default" seeds new sketches. "site"
+// and "line" behave specially and can be relabelled but not deleted.
+const BUILTIN_CATS = [
+  { key: "main",      code: "GLA1", label: "Main floor",            inc: true,  factor: 1, fill: "#dbeafe" },
+  { key: "upper",     code: "GLA2", label: "Upper floor",           inc: true,  factor: 1, fill: "#e0e7ff" },
+  { key: "basement",  code: "BSMT", label: "Basement",              inc: false, factor: 1, fill: "#e5e7eb" },
+  { key: "garage",    code: "GAR",  label: "Garage",                inc: false, factor: 1, fill: "#fef3c7" },
+  { key: "deck",      code: "P/P",  label: "Deck / porch",          inc: false, factor: 1, fill: "#dcfce7" },
+  { key: "office",    code: "OFF",  label: "Office",                inc: true,  factor: 1, fill: "#e0f2fe" },
+  { key: "retail",    code: "RET",  label: "Retail",                inc: true,  factor: 1, fill: "#fce7f3" },
+  { key: "warehouse", code: "WHS",  label: "Warehouse / industrial",inc: true,  factor: 1, fill: "#f3f4f6" },
+  { key: "mezzanine", code: "MEZ",  label: "Mezzanine",             inc: false, factor: 1, fill: "#ede9fe" },
+  { key: "unit",      code: "UNIT", label: "Residential unit",      inc: true,  factor: 1, fill: "#fae8ff" },
+  { key: "common",    code: "COM",  label: "Common area",           inc: true,  factor: 1, fill: "#f5f5f4" },
+  { key: "canopy",    code: "CAN",  label: "Canopy / covered",      inc: false, factor: 1, fill: "#ecfccb" },
+  { key: "line",      code: "",     label: "Interior / fence line", inc: false, factor: 1, fill: "none" },
+  { key: "site",      code: "SITE", label: "Site / lot",            inc: false, factor: 1, fill: "none" },
+  { key: "other",     code: "OTH",  label: "Other",                 inc: false, factor: 1, fill: "#fff7ed" },
+];
+const FIXED_CATS = ["line", "site", "other"];
+const CATS = [], CAT = {};
+const CATS_KEY = "jks-sketch-cats-v1";
+function defaultCats() {
+  try { const d = JSON.parse(localStorage.getItem(CATS_KEY)); if (Array.isArray(d) && d.length) return withFixedCats(d); }
+  catch (e) { /* no stored default */ }
+  return JSON.parse(JSON.stringify(BUILTIN_CATS));
+}
+// A library always holds the special categories, and every category any area uses.
+function withFixedCats(list) {
+  const out = list.map(c => Object.assign({ code: "", factor: 1, inc: false, fill: "#f3f4f6" }, c));
+  for (const k of FIXED_CATS) if (!out.some(c => c.key === k)) out.push(JSON.parse(JSON.stringify(BUILTIN_CATS.find(c => c.key === k))));
+  return out;
+}
+function setCats(list) {
+  const used = (S && S.areas || []).map(a => a.category);
+  let full = withFixedCats(list);
+  for (const k of new Set(used)) if (!full.some(c => c.key === k))
+    full.push(JSON.parse(JSON.stringify(BUILTIN_CATS.find(c => c.key === k) || { key: k, code: "", label: k, inc: false, factor: 1, fill: "#f3f4f6" })));
+  CATS.length = 0; CATS.push(...full);
+  for (const k of Object.keys(CAT)) delete CAT[k];
+  for (const c of CATS) CAT[c.key] = c;
+  if (S) S.cats = CATS;
+  for (const id of ["nCat", "sCat"]) {
+    const el = $(id), v = el.value;
+    el.innerHTML = CATS.map(c => `<option value="${c.key}">${esc((c.code ? c.code + " · " : "") + c.label)}</option>`).join("");
+    if (CAT[v]) el.value = v;
+  }
+}
+// Closed areas that are measured: interior and fence lines never are.
+const isCalc = a => a.closed && a.category !== "line";
+const FT_TO_M = 0.3048;
+const EPS = 1e-6;
+const AUTOSAVE_KEY = "jks-sketch-autosave-v1";
+
+// ---------------------------------------------------------------- state
+function emptySketch() {
+  return {
+    format: "jks-sketch", version: 1, units: "ft",
+    info: { title: "Layout of Subject Improvements", address: "", file: "", preparer: "",
+            date: new Date().toISOString().slice(0, 10) },
+    areas: [], labels: [], nextId: 1,
+    // What an area's label shows on the plan (Apex's auto-post options).
+    show: { code: false, name: true, area: true },
+  };
+}
+let S = null;
+let underlay = null;        // { src, w, h, x, y, scale, rot, opacity } — world units per image px
+let view = { cx: 0, cy: 0, zoom: 8 };   // zoom = screen px per unit
+let draw = null;            // area being drawn (not yet in S.areas)
+let pen = [0, 0];           // where a typed area starts when nothing was clicked
+let sel = null;             // { kind: "area"|"label", id } — the one the side panel edits
+let picks = [];             // everything selected (Shift+click, fence); includes sel
+let viewLevel = "";         // "" = all levels; otherwise only that level is shown, edited and exported
+let clip = null;            // copied areas and labels
+let tool = "draw";
+let hover = null;           // snapped world point under the cursor
+let ghost = [];             // preview points from the half-typed command
+let calib = null;           // first calibration point
+let history = [], future = [];
+const $ = id => document.getElementById(id);
+const svg = $("svg");
+
+// ---------------------------------------------------------------- geometry
+function signedArea(p) {
+  let a = 0;
+  for (let i = 0; i < p.length; i++) {
+    const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % p.length];
+    a += x1 * y2 - x2 * y1;
+  }
+  return a / 2;
+}
+// Curved walls. A wall's curve is its RISE: how far the middle of the arc
+// stands off the straight line between its two corners. Stored per wall in
+// a.rise[i] (wall i runs from corner i to i+1), positive = bulging to the LEFT
+// of the direction of travel. The command line speaks "positive = out of the
+// room" instead; outSign() converts between the two.
+function riseAt(a, i) { return (a.rise && a.rise[i]) || 0; }
+function arcInfo(A, B, s) {
+  const c = dist(A, B);
+  if (!s || c < EPS) return null;
+  const t = Math.abs(s), R = (c * c / 4 + t * t) / (2 * t), th = 4 * Math.atan(2 * t / c);
+  return { c, R, th, len: R * th, seg: R * R / 2 * (th - Math.sin(th)) };
+}
+// Points along the wall from A to B, A excluded, B included.
+function arcPoints(A, B, s) {
+  const ai = arcInfo(A, B, s);
+  if (!ai) return [B.slice()];
+  const nl = [-(B[1] - A[1]) / ai.c, (B[0] - A[0]) / ai.c], k = s - Math.sign(s) * ai.R;
+  const C = [(A[0] + B[0]) / 2 + nl[0] * k, (A[1] + B[1]) / 2 + nl[1] * k];
+  const a0 = Math.atan2(A[1] - C[1], A[0] - C[0]), dir = s > 0 ? -1 : 1;
+  const m = Math.max(8, Math.ceil(ai.th / (Math.PI / 36))), out = [];
+  for (let j = 1; j < m; j++) { const t = a0 + dir * ai.th * j / m; out.push([C[0] + ai.R * Math.cos(t), C[1] + ai.R * Math.sin(t)]); }
+  out.push(B.slice());
+  return out;
+}
+function arcApex(A, B, s) {
+  const c = dist(A, B), nl = [-(B[1] - A[1]) / c, (B[0] - A[0]) / c];
+  return [(A[0] + B[0]) / 2 + nl[0] * s, (A[1] + B[1]) / 2 + nl[1] * s];
+}
+// The area's outline with curves expanded into short chords — for drawing,
+// hit-testing and label placement. Areas and lengths use the exact arc maths.
+function outline(a) {
+  const p = a.points, n = p.length, out = [p[0].slice()];
+  for (let i = 0; i < (a.closed ? n : n - 1); i++) {
+    const pts = arcPoints(p[i], p[(i + 1) % n], riseAt(a, i));
+    if (a.closed && i === n - 1) pts.pop();
+    out.push(...pts);
+  }
+  return out;
+}
+function outSign(pts) { return pts.length >= 3 && signedArea(pts) > 0 ? -1 : 1; }
+function signedAreaOf(a) {
+  const p = a.points, n = p.length;
+  let A = signedArea(p);
+  for (let i = 0; i < n; i++) { const s = riseAt(a, i), ai = arcInfo(p[i], p[(i + 1) % n], s); if (ai) A -= Math.sign(s) * ai.seg; }
+  return A;
+}
+function areaOf(a) { return a.closed && a.points.length >= 3 ? Math.abs(signedAreaOf(a)) : 0; }
+// Apex-style calculation: net = base × factor, negated for a deduction
+// (stairwell, atrium). Every total uses the net; the drawn shape is the base.
+function factorOf(a) { return typeof a.factor === "number" && a.factor >= 0 ? a.factor : 1; }
+function netAreaOf(a) { return areaOf(a) * factorOf(a) * (a.negative ? -1 : 1); }
+function perimeterOf(a) {
+  let s = 0; const p = a.points, n = p.length;
+  for (let i = 0; i < (a.closed ? n : n - 1); i++) {
+    const ai = arcInfo(p[i], p[(i + 1) % n], riseAt(a, i));
+    s += ai ? ai.len : dist(p[i], p[(i + 1) % n]);
+  }
+  return s;
+}
+function dist(a, b) { return Math.hypot(b[0] - a[0], b[1] - a[1]); }
+function centroid(p) {
+  const A = signedArea(p);
+  if (Math.abs(A) < EPS) {
+    const s = p.reduce((t, q) => [t[0] + q[0], t[1] + q[1]], [0, 0]);
+    return [s[0] / p.length, s[1] / p.length];
+  }
+  let cx = 0, cy = 0;
+  for (let i = 0; i < p.length; i++) {
+    const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % p.length], f = x1 * y2 - x2 * y1;
+    cx += (x1 + x2) * f; cy += (y1 + y2) * f;
+  }
+  return [cx / (6 * A), cy / (6 * A)];
+}
+function pointInPoly(pt, p) {
+  let inside = false;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+    const [xi, yi] = p[i], [xj, yj] = p[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function distToSeg(pt, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+  const t = L ? Math.max(0, Math.min(1, ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / L)) : 0;
+  return Math.hypot(pt[0] - a[0] - t * dx, pt[1] - a[1] - t * dy);
+}
+function bbox(points) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of points) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  return { x0, y0, x1, y1 };
+}
+const round4 = v => Math.round(v * 1e4) / 1e4;
+
+// ---------------------------------------------------------------- formatting
+function fmtNum(v, d) { return (+v.toFixed(d)).toString(); }
+function fmtLen(v) {
+  const dd = +$("dimDec").value;
+  if (S.units === "m") return fmtNum(v, dd);
+  if ($("dimFmt").value === "ftin") {
+    let ft = Math.floor(v + EPS), inch = Math.round((v - ft) * 12);
+    if (inch === 12) { ft += 1; inch = 0; }
+    return inch ? `${ft}'${inch}"` : `${ft}'`;
+  }
+  return fmtNum(v, dd) + "'";
+}
+function fmtArea(v) {
+  return S.units === "m"
+    ? v.toLocaleString("en-CA", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " m²"
+    : Math.round(v).toLocaleString("en-CA") + " sf";
+}
+const areaUnitLabel = () => S.units === "m" ? "m²" : "sf";
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// ---------------------------------------------------------------- command language
+const INCH = "(?:\\d+(?:\\.\\d+)?(?:-\\d+/\\d+)?|\\d+/\\d+)";
+const LEN = `(\\d+(?:\\.\\d+)?(?:'(?:${INCH}"?)?|-${INCH}"?)?)`;
+const DEG = "(\\d+(?:\\.\\d+)?(?:-\\d+(?:\\.\\d+)?){0,2})";
+const RE_VEC = new RegExp(`^([UDLR])${LEN}(?:([UDLR])${LEN})?$`);
+const RE_ANG = new RegExp(`^${LEN}@(-?)${DEG}$`);
+const RE_BRG = new RegExp(`^([NS])${DEG}([EW])${LEN}$`);
+const RE_TURN = new RegExp(`^${LEN}([<>])${DEG}?$`);
+const RE_RUN = /^([UDLR])([*=])$/;
+const DIRV = { R: [1, 0], L: [-1, 0], U: [0, 1], D: [0, -1] };
+const DIRWORD = { R: "right", L: "left", U: "up", D: "down" };
+
+function parseLen(s) {
+  let m;
+  if ((m = s.match(/^(\d+(?:\.\d+)?)$/))) return +m[1];
+  let feet = null;
+  if ((m = s.match(/^(\d+(?:\.\d+)?)'(?:([\d./-]+?)"?)?$/))) feet = +m[1] + (m[2] ? parseInch(m[2]) / 12 : 0);
+  else if ((m = s.match(/^(\d+)-([\d./-]+?)"?$/))) feet = +m[1] + parseInch(m[2]) / 12;
+  if (feet === null || !isFinite(feet)) return NaN;
+  return S.units === "m" ? feet * FT_TO_M : feet;
+}
+// Inches: 6, 6.5, 6-1/2 (six and a half), 1/2.
+function parseInch(s) {
+  let m;
+  if ((m = s.match(/^(\d+)-(\d+)\/(\d+)$/))) return +m[1] + +m[2] / +m[3];
+  if ((m = s.match(/^(\d+)\/(\d+)$/))) return +m[1] / +m[2];
+  return /^\d+(?:\.\d+)?$/.test(s) ? +s : NaN;
+}
+function parseDeg(s) {
+  const parts = s.split("-").map(Number);
+  return (parts[0] || 0) + (parts[1] || 0) / 60 + (parts[2] || 0) / 3600;
+}
+// A curve suffix -> the wall's rise, in "positive = out of the room" terms.
+// ~5 is a rise of 5; ~R25 a radius of 25 (the shallow arc); ~A50 an arc
+// length of 50 measured along the curve; ~D90 an arc angle (degree of
+// curvature) of 90°; ~-5 bows inward. NaN when the curve can't fit the wall.
+function riseFrom(curve, c) {
+  if (!curve) return 0;
+  let s = curve.v;
+  if (curve.kind === "radius") {
+    if (curve.v < c / 2 - 1e-9) return NaN;
+    s = curve.v - Math.sqrt(Math.max(0, curve.v * curve.v - c * c / 4));
+  } else if (curve.kind === "arc") {
+    if (!(curve.v > c + 1e-9)) return NaN;
+    // Solve c/L = sin(θ/2)/(θ/2) for the arc angle θ in (0, 2π).
+    let lo = 1e-9, hi = 2 * Math.PI - 1e-9;
+    for (let k = 0; k < 80; k++) { const m = (lo + hi) / 2; if (2 * Math.sin(m / 2) / m > c / curve.v) lo = m; else hi = m; }
+    const th = (lo + hi) / 2, R = curve.v / th;
+    s = R * (1 - Math.cos(th / 2));
+  } else if (curve.kind === "deg") {
+    if (!(curve.v > 0 && curve.v < 360)) return NaN;
+    const th = curve.v * Math.PI / 180, R = c / (2 * Math.sin(th / 2));
+    s = R * (1 - Math.cos(th / 2));
+  }
+  return curve.neg ? -s : s;
+}
+const CURVE_ERR = "the curve doesn't fit this wall (radius at least half the wall, arc longer than the wall, angle under 360°)";
+// One token -> { op: "seg"|"move", dx, dy, rise } | { op: "turn", len, right, deg, rise }
+// | { op: "run", dir, mode } | { op: "close", curve } | { op: "closewalls" } | { op: "end" } | { err }
+function parseToken(tok) {
+  let t = tok.toUpperCase(), move = false, curve = null, cm;
+  if ((cm = t.match(/^(.+)~(-?)([RAD]?)(.+)$/))) {
+    const kind = { R: "radius", A: "arc", D: "deg" }[cm[3]] || "rise";
+    const v = kind === "deg" ? (/^\d+(?:\.\d+)?$/.test(cm[4]) ? +cm[4] : NaN) : parseLen(cm[4]);
+    if (!(v > 0)) return { err: `bad curve in ${tok} (e.g. R40~5, R40~r25, R40~a45, R40~d90)` };
+    t = cm[1]; curve = { v, neg: !!cm[2], kind };
+  }
+  if (t === "C") return { op: "close", curve };
+  if (t === "CW") return curve ? { err: "CW can't take a curve" } : { op: "closewalls" };
+  if (t === "E") return curve ? { err: "E can't take a curve" } : { op: "end" };
+  if (t.length > 1 && t[0] === "M") { move = true; t = t.slice(1); }
+  let m, dx, dy;
+  if ((m = t.match(RE_TURN))) {
+    if (move) return { err: "a move (m) can't turn; use mR10, m3@45 etc." };
+    const len = parseLen(m[1]), deg = m[3] ? parseDeg(m[3]) : 90;
+    if (!(len > 0)) return { err: `bad length in ${tok}` };
+    if (!(deg >= 0 && deg <= 180)) return { err: `${tok}: a turn is 0–180°` };
+    const rise = riseFrom(curve, len);
+    if (Number.isNaN(rise)) return { err: `${tok}: ${CURVE_ERR}` };
+    return { op: "turn", len, right: m[2] === ">", deg, rise };
+  }
+  if ((m = t.match(RE_RUN))) {
+    if (move || curve) return { err: `${tok}: a run (${m[2]}) can't be a move or a curve` };
+    return { op: "run", dir: m[1], mode: m[2] };
+  }
+  if ((m = t.match(RE_VEC))) {
+    const l1 = parseLen(m[2]);
+    if (!(l1 > 0)) return { err: `bad length in ${tok}` };
+    [dx, dy] = DIRV[m[1]].map(v => v * l1);
+    if (m[3]) {
+      if ((m[1] === "L" || m[1] === "R") === (m[3] === "L" || m[3] === "R")) return { err: `${tok}: a diagonal needs one horizontal and one vertical part` };
+      const l2 = parseLen(m[4]);
+      if (!(l2 > 0)) return { err: `bad length in ${tok}` };
+      dx += DIRV[m[3]][0] * l2; dy += DIRV[m[3]][1] * l2;
+    }
+  } else if ((m = t.match(RE_ANG))) {
+    const l = parseLen(m[1]), a = (m[2] ? -1 : 1) * parseDeg(m[3]) * Math.PI / 180;
+    if (!(l > 0)) return { err: `bad length in ${tok}` };
+    dx = l * Math.cos(a); dy = l * Math.sin(a);
+  } else if ((m = t.match(RE_BRG))) {
+    const b = parseDeg(m[2]), l = parseLen(m[4]);
+    if (b > 90) return { err: `${tok}: a bearing angle is 0–90°` };
+    if (!(l > 0)) return { err: `bad length in ${tok}` };
+    const r = b * Math.PI / 180;
+    dx = l * Math.sin(r) * (m[3] === "E" ? 1 : -1);
+    dy = l * Math.cos(r) * (m[1] === "N" ? 1 : -1);
+  } else {
+    return { err: `don't understand "${tok}" (F1 for help)` };
+  }
+  if (move) return curve ? { err: "a move (m) can't be curved" } : { op: "move", dx, dy };
+  const rise = riseFrom(curve, Math.hypot(dx, dy));
+  if (Number.isNaN(rise)) return { err: `${tok}: ${CURVE_ERR}` };
+  return { op: "seg", dx, dy, rise };
+}
+// Turns and runs depend on where the pen is: resolve them against the corners
+// so far (start first) into a plain wall. A turn is the deflection from the
+// previous wall's line (Apex's "Turn"): 17>45 turns right 45°, 17< turns
+// left 90°. U= runs until level with the start; U* until it meets a wall.
+function resolveOp(o, pts) {
+  if (o.op === "turn") {
+    if (pts.length < 2) return { err: "a turn (> or <) needs a wall before it to turn from" };
+    const a = pts[pts.length - 2], b = pts[pts.length - 1];
+    const t = Math.atan2(b[1] - a[1], b[0] - a[0]) + (o.right ? -1 : 1) * o.deg * Math.PI / 180;
+    return { op: "seg", dx: o.len * Math.cos(t), dy: o.len * Math.sin(t), rise: o.rise };
+  }
+  if (o.op !== "run") return o;
+  const cur = pts[pts.length - 1], u = DIRV[o.dir];
+  let d;
+  if (o.mode === "=") {
+    d = (pts[0][0] - cur[0]) * u[0] + (pts[0][1] - cur[1]) * u[1];
+    if (!(d > 1e-3)) return { err: `${o.dir}=: the start isn't ${DIRWORD[o.dir]} from here` };
+  } else {
+    d = rayToWalls(cur, u, pts);
+    if (!(d < Infinity)) return { err: `${o.dir}*: no wall ${DIRWORD[o.dir]} from here to run to` };
+  }
+  return { op: "seg", dx: u[0] * d, dy: u[1] * d, rise: 0 };
+}
+// Distance along the ray to the nearest wall: existing areas (curves by their
+// drawn chords) and this area's own walls except the one ending here.
+function rayToWalls(from, u, own) {
+  const segs = [];
+  for (const a of visAreas()) { const p = outline(a), n = p.length; for (let i = 0; i < (a.closed ? n : n - 1); i++) segs.push([p[i], p[(i + 1) % n]]); }
+  for (let i = 0; i < own.length - 2; i++) segs.push([own[i], own[i + 1]]);
+  let best = Infinity;
+  for (const [C, D] of segs) {
+    const ex = D[0] - C[0], ey = D[1] - C[1], den = u[0] * ey - u[1] * ex;
+    if (Math.abs(den) < 1e-12) continue;
+    const wx = C[0] - from[0], wy = C[1] - from[1];
+    const t = (wx * ey - wy * ex) / den, s = (wx * u[1] - wy * u[0]) / den;
+    if (t > ON && s >= -1e-9 && s <= 1 + 1e-9 && t < best) best = t;
+  }
+  return best;
+}
+function parseLine(line) {
+  const toks = line.trim().split(/[\s,;]+/).filter(Boolean), ops = [];
+  for (const tok of toks) {
+    const r = parseToken(tok);
+    if (r.err) return { err: r.err };
+    ops.push(r);
+  }
+  return { ops };
+}
+// A segment as a token that reproduces it exactly.
+function segToken(dx, dy) {
+  const f = v => fmtNum(Math.abs(v), 4);
+  const h = Math.abs(dx) > EPS ? (dx > 0 ? "R" : "L") + f(dx) : "";
+  const v = Math.abs(dy) > EPS ? (dy > 0 ? "U" : "D") + f(dy) : "";
+  return h + v;
+}
+function curveToken(stored, sign) {
+  const r = stored * sign;
+  return Math.abs(r) > EPS ? "~" + (r < 0 ? "-" : "") + fmtNum(Math.abs(r), 4) : "";
+}
+function vectorsOf(a) {
+  const p = a.points, toks = [], sg = a.closed ? outSign(p) : 1;
+  for (let i = 1; i < p.length; i++) toks.push(segToken(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]) + curveToken(riseAt(a, i - 1), sg));
+  toks.push(a.closed ? "C" + curveToken(riseAt(a, p.length - 1), sg) : "E");
+  return toks.join(" ");
+}
+
+// ---------------------------------------------------------------- drawing ops
+function newArea(start) {
+  const cat = $("nCat").value;
+  return {
+    id: S.nextId++, name: "", building: $("nBuilding").value.trim(), level: $("nLevel").value.trim(),
+    category: cat, included: CAT[cat].inc, dims: true, closed: false, group: $("nGroup").value.trim(),
+    factor: CAT[cat].factor ?? 1, negative: false, hideDims: [],
+    points: [start.slice()], rise: [], labelOffset: [0, 0],
+  };
+}
+function defaultName(a, among = S.areas) {
+  const n = among.filter(x => x.category === a.category).length + 1;
+  return CAT[a.category].label + (n > 1 ? " " + n : "");
+}
+function startDraw(at) { draw = newArea(at); setSel(null); }
+function lastPt() { return draw.points[draw.points.length - 1]; }
+
+// Apply parsed ops to the area being drawn. Returns a status message.
+function applyOps(ops) {
+  let msg = "", justClosed = false;
+  for (let o of ops) {
+    // A wall that lands on the start closes the area; a C or CW typed after it has nothing left to do.
+    if (justClosed && (o.op === "close" || o.op === "closewalls")) continue;
+    justClosed = false;
+    if (o.op === "turn" || o.op === "run") {
+      if (!draw) startDraw(pen);
+      o = resolveOp(o, draw.points);
+      if (o.err) return { err: o.err };
+    }
+    if (o.op === "move") {
+      if (draw && draw.points.length > 1) return { err: "m (move) only works before the first wall" };
+      if (!draw) startDraw(pen);
+      const p = draw.points[0];
+      draw.points[0] = [round4(p[0] + o.dx), round4(p[1] + o.dy)];
+      pen = draw.points[0].slice();
+      continue;
+    }
+    if (!draw) startDraw(pen);
+    if (o.op === "seg") {
+      const l = lastPt(), q = [round4(l[0] + o.dx), round4(l[1] + o.dy)];
+      draw.rise[draw.points.length - 1] = o.rise || 0;
+      if (draw.points.length >= 3 && dist(q, draw.points[0]) < 1e-3) { msg = finish(true, true); justClosed = true; continue; }
+      draw.points.push(q);
+    } else if (o.op === "close") {
+      if (draw.points.length < 3) return { err: "need at least 3 corners to close" };
+      const r = riseFrom(o.curve, dist(lastPt(), draw.points[0]));
+      if (Number.isNaN(r)) return { err: `C: ${CURVE_ERR}` };
+      draw.rise[draw.points.length - 1] = r;
+      msg = finish(true);
+    } else if (o.op === "closewalls") {
+      if (draw.points.length < 2) return { err: "CW needs at least one typed wall first" };
+      const w = wallsClosure(draw.points);
+      if (w.err) return { err: w.err };
+      const n0 = draw.points.length, sg = outSign(draw.points.concat(w.points));
+      draw.points.push(...w.points);
+      w.rises.forEach((v, k) => draw.rise[n0 - 1 + k] = v * sg);   // finish() multiplies by sg again
+      draw.hideDims = w.rises.map((_, k) => n0 - 1 + k);
+      const n = w.rises.length;
+      msg = finish(true, true, `Closed along ${n} existing wall${n > 1 ? "s" : ""} of ${w.names.join(", ")} (their dimensions hidden here).`);
+    } else if (o.op === "end") {
+      if (draw.points.length < 2) return { err: "nothing to end" };
+      msg = finish(false);
+    }
+  }
+  return { msg };
+}
+function finish(closed, exact, note) {
+  pushHistory();
+  const a = draw; draw = null;
+  a.closed = closed;
+  // An open line can't be floor area: unless it's a lot line it's an interior or fence line.
+  if (!closed && a.category !== "site") { a.category = "line"; a.included = false; }
+  a.rise.length = closed ? a.points.length : a.points.length - 1;
+  const sg = closed ? outSign(a.points) : 1;   // typed "out of the room" -> stored "left of travel"
+  a.rise = Array.from(a.rise, v => (v || 0) * sg);
+  let msg;
+  if (closed) {
+    msg = note || (exact ? "Closed exactly." : closingNote(a.points));
+  } else msg = "Open line ended.";
+  a.name = defaultName(a);
+  S.areas.push(a);
+  setSel({ kind: "area", id: a.id });
+  pen = a.points[0].slice();
+  commit();
+  return `${a.name}: ${closed ? fmtArea(netAreaOf(a)) + ". " : ""}${msg}`;
+}
+
+// A diagonal closing wall on an otherwise square plan is the usual sign of a
+// mistyped or misread dimension on the field sketch — say so.
+function closingNote(p) {
+  const l = p[p.length - 1], dx = p[0][0] - l[0], dy = p[0][1] - l[1];
+  if (Math.hypot(dx, dy) < 1e-3) return "Closed exactly.";
+  const square = (ax, ay) => Math.abs(ax) < 1e-3 || Math.abs(ay) < 1e-3;
+  let allSquare = true;
+  for (let i = 1; i < p.length; i++) allSquare = allSquare && square(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+  const tok = segToken(dx, dy).replace(/(\.\d{2})\d+/g, "$1");
+  return allSquare && !square(dx, dy)
+    ? `⚠ Closing wall is diagonal (${tok}) — the walls don't add up; check the sketch.`
+    : `Closing wall ${fmtLen(Math.hypot(dx, dy))} (${tok}).`;
+}
+
+// ---------------------------------------------------------------- closing along existing walls
+// CW closes an area by following walls already drawn back to its start, so an
+// addition needs only its own walls typed. The traced walls are copied into the
+// new area (areas stay independent polygons) with their dimensions hidden,
+// since the building they belong to already carries them. Where there is more
+// than one route, the smallest simple polygon wins: going the long way round
+// the building you are attaching to would enclose that building as well.
+const ON = 1e-3;   // how close a corner must be to a wall to count as on it
+function existingWalls(except) {
+  const segs = [];
+  for (const a of visAreas()) {
+    if (!a.closed || a.category === "site" || a === except) continue;
+    const p = a.points, n = p.length;
+    for (let i = 0; i < n; i++) segs.push({ A: p[i], B: p[(i + 1) % n], rise: riseAt(a, i), area: a });
+  }
+  return segs;
+}
+function gapToWalls(q, segs) {
+  let g = Infinity;
+  for (const w of segs) g = Math.min(g, w.rise ? Math.min(dist(q, w.A), dist(q, w.B)) : distToSeg(q, w.A, w.B));
+  return g;
+}
+// Cut straight walls at every corner (and extra point) lying along them, so a
+// route can turn wherever another wall or the new area meets them.
+function splitWalls(segs, extra) {
+  const verts = segs.flatMap(w => [w.A, w.B]).concat(extra), out = [];
+  for (const w of segs) {
+    const L = dist(w.A, w.B);
+    if (L < EPS) continue;
+    if (w.rise) { out.push(w); continue; }
+    const cuts = [{ t: 0, p: w.A }, { t: 1, p: w.B }];
+    for (const v of verts) {
+      if (distToSeg(v, w.A, w.B) > ON) continue;
+      const t = ((v[0] - w.A[0]) * (w.B[0] - w.A[0]) + (v[1] - w.A[1]) * (w.B[1] - w.A[1])) / (L * L);
+      if (t * L > ON && (1 - t) * L > ON) cuts.push({ t, p: v });
+    }
+    cuts.sort((x, y) => x.t - y.t);
+    for (let i = 1; i < cuts.length; i++)
+      if ((cuts[i].t - cuts[i - 1].t) * L > ON) out.push({ A: cuts[i - 1].p, B: cuts[i].p, rise: 0, area: w.area });
+  }
+  return out;
+}
+// Corners within ON of each other are one node; each wall runs both ways
+// (backwards, a curve bulges to the other side of travel).
+function wallGraph(segs) {
+  const nodes = [], adj = [];
+  const node = p => {
+    let i = nodes.findIndex(q => dist(p, q) < ON);
+    if (i < 0) { i = nodes.length; nodes.push(p.slice()); adj.push([]); }
+    return i;
+  };
+  for (const w of segs) {
+    const a = node(w.A), b = node(w.B);
+    if (a === b) continue;
+    const len = w.rise ? arcInfo(w.A, w.B, w.rise).len : dist(w.A, w.B);
+    adj[a].push({ to: b, rise: w.rise, len, area: w.area });
+    adj[b].push({ to: a, rise: -w.rise, len, area: w.area });
+  }
+  return { nodes, adj, find: p => nodes.findIndex(q => dist(p, q) < ON) };
+}
+function shortestRoute(g, from, to) {
+  const n = g.nodes.length, d = Array(n).fill(Infinity), prev = Array(n).fill(null), done = Array(n).fill(false);
+  d[from] = 0;
+  for (;;) {
+    let u = -1;
+    for (let i = 0; i < n; i++) if (!done[i] && d[i] < Infinity && (u < 0 || d[i] < d[u])) u = i;
+    if (u < 0 || u === to) break;
+    done[u] = true;
+    for (const e of g.adj[u]) if (d[u] + e.len < d[e.to]) { d[e.to] = d[u] + e.len; prev[e.to] = { from: u, e }; }
+  }
+  if (d[to] === Infinity) return null;
+  const steps = [];
+  for (let v = to; v !== from; v = prev[v].from) steps.unshift(prev[v].e);
+  return steps;
+}
+// Both ways round one area's outline.
+function ringRoutes(g, from, to) {
+  const out = [];
+  for (const first of g.adj[from]) {
+    const steps = [first];
+    let cur = first.to, back = from;
+    while (cur !== to && steps.length <= g.nodes.length) {
+      const next = g.adj[cur].find(e => e.to !== back) || null;
+      if (!next) break;
+      steps.push(next); back = cur; cur = next.to;
+    }
+    if (cur === to) out.push(steps);
+  }
+  return out;
+}
+function orient(a, b, c) {
+  const v = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  return Math.abs(v) < 1e-7 ? 0 : Math.sign(v);
+}
+function onSeg(a, b, q) {
+  return Math.min(a[0], b[0]) - 1e-7 <= q[0] && q[0] <= Math.max(a[0], b[0]) + 1e-7 &&
+         Math.min(a[1], b[1]) - 1e-7 <= q[1] && q[1] <= Math.max(a[1], b[1]) + 1e-7;
+}
+function segsTouch(a, b, c, d) {
+  const o1 = orient(a, b, c), o2 = orient(a, b, d), o3 = orient(c, d, a), o4 = orient(c, d, b);
+  if (o1 * o2 < 0 && o3 * o4 < 0) return true;
+  return (!o1 && onSeg(a, b, c)) || (!o2 && onSeg(a, b, d)) || (!o3 && onSeg(c, d, a)) || (!o4 && onSeg(c, d, b));
+}
+// No wall crosses or touches another except its neighbours at their shared
+// corner, and no wall doubles straight back over the one before it.
+function isSimple(p) {
+  const n = p.length;
+  for (let i = 0; i < n; i++) {
+    const a = p[i], b = p[(i + 1) % n], c = p[(i + 2) % n];
+    if (!orient(a, b, c) && (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]) < 0) return false;
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue;
+      if (segsTouch(a, b, p[j], p[(j + 1) % n])) return false;
+    }
+  }
+  return true;
+}
+// pts: the corners typed so far, start first. Returns the corners to add
+// (start excluded) and each traced wall's rise in stored (left-of-travel) terms.
+function wallsClosure(pts) {
+  const s = pts[0], e = pts[pts.length - 1], walls = existingWalls();
+  if (!walls.length) return { err: "CW needs an existing area to close along." };
+  const unit = S.units === "m" ? " m" : " ft";
+  const gs = gapToWalls(s, walls), ge = gapToWalls(e, walls);
+  if (gs > ON) return { err: `CW: the start is ${fmtNum(gs, 3)}${unit} off the nearest wall. Start on the building it attaches to (click a corner, or mR along a wall).` };
+  if (ge > ON) return { err: `CW: the last corner is ${fmtNum(ge, 3)}${unit} off the nearest wall. Check the dimensions.` };
+  const routes = [];
+  const all = wallGraph(splitWalls(walls, [s, e]));
+  const r0 = shortestRoute(all, all.find(e), all.find(s));
+  if (r0) routes.push({ g: all, steps: r0 });
+  for (const a of new Set(walls.map(w => w.area))) {
+    const g = wallGraph(splitWalls(walls.filter(w => w.area === a), [s, e])), fe = g.find(e), fs = g.find(s);
+    if (fe >= 0 && fs >= 0) for (const steps of ringRoutes(g, fe, fs)) routes.push({ g, steps });
+  }
+  let best = null;
+  for (const { g, steps } of routes) {
+    if (!steps.length) continue;
+    const add = steps.slice(0, -1).map(st => g.nodes[st.to].slice()), poly = pts.concat(add);
+    const A = Math.abs(signedArea(poly));
+    if (A < EPS || !isSimple(poly)) continue;
+    if (!best || A < best.A - EPS) best = { A, points: add, rises: steps.map(st => st.rise), names: [...new Set(steps.map(st => st.area.name))] };
+  }
+  return best || { err: "CW: no route along existing walls leads back to the start." };
+}
+
+// ---------------------------------------------------------------- history
+function snapshot() { return JSON.stringify(S); }
+function pushHistory() { history.push(snapshot()); if (history.length > 200) history.shift(); future = []; }
+function undo() {
+  if (draw) {
+    if (draw.points.length > 1) { draw.points.pop(); draw.rise.length = draw.points.length - 1; } else draw = null;
+    render(); return;
+  }
+  if (!history.length) return status("Nothing to undo.");
+  future.push(snapshot()); S = JSON.parse(history.pop()); afterLoad();
+}
+function redo() {
+  if (!future.length) return status("Nothing to redo.");
+  history.push(snapshot()); S = JSON.parse(future.pop()); afterLoad();
+}
+function afterLoad() {
+  setCats(S.cats || defaultCats());
+  picks = picks.filter(p => (p.kind === "area" ? S.areas : S.labels).some(x => x.id === p.id));
+  if (sel && !findSel()) sel = picks[0] || null;
+  syncInfoFields(); commit();
+}
+function commit() {
+  try { localStorage.setItem(AUTOSAVE_KEY, snapshot()); } catch (e) { /* storage unavailable: autosave is a convenience */ }
+  render(); renderPanel();
+}
+
+// ---------------------------------------------------------------- selection
+function findSel() {
+  if (!sel) return null;
+  const list = sel.kind === "area" ? S.areas : S.labels;
+  return list.find(x => x.id === sel.id) || null;
+}
+function setSel(s) { sel = s; picks = s ? [s] : []; }
+const isPicked = (kind, id) => picks.some(p => p.kind === kind && p.id === id);
+function togglePick(s) {
+  if (isPicked(s.kind, s.id)) picks = picks.filter(p => !(p.kind === s.kind && p.id === s.id));
+  else picks.push(s);
+  sel = picks.length === 1 ? picks[0] : picks.length ? sel && isPicked(sel.kind, sel.id) ? sel : picks[0] : null;
+}
+function pickedItems() {
+  return picks.map(p => (p.kind === "area" ? S.areas : S.labels).find(x => x.id === p.id)).filter(Boolean)
+    .map(it => ({ it, kind: S.areas.includes(it) ? "area" : "label" }));
+}
+// Levels: with a level chosen in "Show", other levels' areas and labels are
+// hidden from the canvas, from snapping and tracing, and from the export.
+// Site areas and anything with no level always show.
+const visible = x => !viewLevel || !x.level || x.level === viewLevel || x.category === "site";
+const visAreas = () => S.areas.filter(visible);
+const visLabels = () => S.labels.filter(visible);
+function levelsInUse() {
+  return [...new Set(S.areas.filter(a => a.category !== "site").map(a => (a.level || "").trim()).filter(Boolean))];
+}
+function hitTest(w) {
+  const tol = 6 / view.zoom, areas = visAreas().reverse();
+  // A dimension: clicking one hides or shows it (screen-space test).
+  if ($("showDims").checked) {
+    const [px, py] = w2s(view, W(), H(), w[0], w[1]), T = (x, y) => w2s(view, W(), H(), x, y);
+    for (const a of areas) if (a.dims && a.category !== "site") for (const d of dimSpecs(a, T)) {
+      const r = d.ang * Math.PI / 180, dx = px - d.mx, dy = py - d.my;   // into the text's own (rotated) frame
+      if (Math.abs(dx * Math.cos(r) + dy * Math.sin(r)) < Math.max(10, d.txt.length * 3) && Math.abs(-dx * Math.sin(r) + dy * Math.cos(r)) < 6)
+        return { kind: "dim", id: a.id, wall: d.i };
+    }
+  }
+  for (const l of visLabels().reverse()) {
+    const hw = (l.text.length * (l.size || 12) * 0.3) / view.zoom, hh = (l.size || 12) * 0.6 / view.zoom;
+    if (Math.abs(w[0] - l.x) < hw && Math.abs(w[1] - l.y) < hh) return { kind: "label", id: l.id };
+  }
+  for (const a of areas) {
+    if (a.category === "line") continue;
+    const lp = labelPos(a);
+    if (Math.abs(w[0] - lp[0]) < 40 / view.zoom && Math.abs(w[1] - lp[1]) < 14 / view.zoom) return { kind: "area", id: a.id, onLabel: true };
+  }
+  for (const a of areas) {
+    const p = outline(a), n = p.length;
+    if (isCalc(a) && a.category !== "site" && pointInPoly(w, p)) return { kind: "area", id: a.id };
+    for (let i = 0; i < (a.closed ? n : n - 1); i++) if (distToSeg(w, p[i], p[(i + 1) % n]) < tol) return { kind: "area", id: a.id };
+  }
+  for (const a of areas) if (a.closed && pointInPoly(w, outline(a))) return { kind: "area", id: a.id };
+  return null;
+}
+function labelPos(a) {
+  const c = a.closed ? centroid(outline(a)) : a.points[Math.floor((a.points.length - 1) / 2)];
+  return [c[0] + a.labelOffset[0], c[1] + a.labelOffset[1]];
+}
+function transformArea(a, fn, mirror) {
+  pushHistory();
+  const c = centroid(outline(a));
+  a.points = a.points.map(p => fn(p[0] - c[0], p[1] - c[1])).map(([x, y]) => [round4(x + c[0]), round4(y + c[1])]);
+  if (mirror) a.rise = (a.rise || []).map(v => -(v || 0));   // a mirror swaps left and right
+  commit();
+}
+
+// ---------------------------------------------------------------- view
+function W() { return svg.clientWidth || 800; }
+function H() { return svg.clientHeight || 600; }
+function w2s(v, Wd, Ht, x, y) { return [(x - v.cx) * v.zoom + Wd / 2, (v.cy - y) * v.zoom + Ht / 2]; }
+function s2w(px, py) { return [(px - W() / 2) / view.zoom + view.cx, view.cy - (py - H() / 2) / view.zoom]; }
+function allPoints(withUnderlay) {
+  const pts = visAreas().flatMap(outline).concat(visLabels().map(l => [l.x, l.y]));
+  if (draw) pts.push(...outline(draw));
+  if (withUnderlay && underlay) {
+    pts.push([underlay.x, underlay.y], [underlay.x + underlay.w * underlay.scale, underlay.y - underlay.h * underlay.scale]);
+  }
+  return pts;
+}
+function fit() {
+  const pts = allPoints(true);
+  if (!pts.length) { view = { cx: 0, cy: 0, zoom: 8 }; return render(); }
+  const b = bbox(pts), bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);
+  view.zoom = Math.min((W() - 80) / bw, (H() - 80) / bh);
+  view.cx = (b.x0 + b.x1) / 2; view.cy = (b.y0 + b.y1) / 2;
+  render();
+}
+function snapPoint(w) {
+  let best = null, bd = 10 / view.zoom;
+  const cand = visAreas().flatMap(a => a.points).concat(draw ? draw.points : []);
+  for (const p of cand) { const d = dist(p, w); if (d < bd) { bd = d; best = p; } }
+  if (best) return { pt: best.slice(), vertex: true };
+  const g = parseFloat($("snap").value);
+  if (g > 0) return { pt: [round4(Math.round(w[0] / g) * g), round4(Math.round(w[1] / g) * g)], vertex: false };
+  return { pt: [round4(w[0]), round4(w[1])], vertex: false };
+}
+
+// ---------------------------------------------------------------- rendering
+// One renderer for the screen and for every export, so what you see is what files.
+function scene(v, Wd, Ht, o) {
+  const out = [], T = (x, y) => w2s(v, Wd, Ht, x, y);
+  if (o.grid) {
+    const steps = [0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
+    const step = steps.find(s => s * v.zoom >= 14) || 1000, major = step * 5;
+    const [x0, y1] = [(0 - Wd / 2) / v.zoom + v.cx, v.cy + Ht / 2 / v.zoom];
+    const [x1, y0] = [Wd / 2 / v.zoom + v.cx, v.cy - Ht / 2 / v.zoom];
+    let minor = "", maj = "";
+    for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) {
+      const sx = T(x, 0)[0].toFixed(1), isMaj = Math.abs(x / major - Math.round(x / major)) < 1e-6;
+      (isMaj ? (s => maj += s) : (s => minor += s))(`M${sx} 0V${Ht}`);
+    }
+    for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) {
+      const sy = T(0, y)[1].toFixed(1), isMaj = Math.abs(y / major - Math.round(y / major)) < 1e-6;
+      (isMaj ? (s => maj += s) : (s => minor += s))(`M0 ${sy}H${Wd}`);
+    }
+    out.push(`<path d="${minor}" stroke="#f1f3f5" stroke-width="1"/><path d="${maj}" stroke="#e2e6ea" stroke-width="1"/>`);
+  }
+  if (o.underlay && underlay) {
+    const [sx, sy] = T(underlay.x, underlay.y), k = underlay.scale * v.zoom;
+    out.push(`<image href="${underlay.src}" x="${sx}" y="${sy}" width="${underlay.w * k}" height="${underlay.h * k}" ` +
+      `opacity="${underlay.opacity}" transform="rotate(${underlay.rot} ${sx} ${sy})" preserveAspectRatio="none"/>`);
+  }
+  // Site first, then buildings, so a lot line never hides a building.
+  const order = visAreas().sort((a, b) => (b.category === "site") - (a.category === "site"));
+  o.groups = groupsOf();
+  for (const a of order) out.push(areaSvg(a, T, o, !o.noSel && isPicked("area", a.id)));
+  for (const l of visLabels()) {
+    const [sx, sy] = T(l.x, l.y), isSel = !o.noSel && isPicked("label", l.id);
+    out.push(`<text x="${sx}" y="${sy}" font-size="${l.size || 12}" text-anchor="middle" dominant-baseline="middle" ` +
+      `font-family="Arial, Helvetica, sans-serif" fill="${isSel ? "#2563eb" : "#111827"}">${esc(l.text)}</text>`);
+  }
+  if (o.live) out.push(liveSvg(T));
+  return out.join("");
+}
+// Where each wall's dimension goes, in screen space.
+function dimSpecs(a, T) {
+  const p = a.points, n = p.length, sp = p.map(q => T(q[0], q[1])), out = [];
+  const ccw = signedAreaOf(a) > 0, hidden = new Set(a.hideDims || []);
+  for (let i = 0; i < (a.closed ? n : n - 1); i++) {
+    const A = p[i], B = p[(i + 1) % n], L = dist(A, B);
+    if (L < EPS) continue;
+    const [ax, ay] = sp[i], [bx, by] = sp[(i + 1) % n];
+    let nx = (by - ay), ny = -(bx - ax);          // screen-space normal
+    const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+    // Dimensions sit INSIDE their room, so a wall shared by two areas gets
+    // one dimension on each side instead of two on top of each other.
+    if (!a.closed || !ccw) { nx = -nx; ny = -ny; }
+    // A curved wall is dimensioned at the top of its arc: chord, then rise.
+    const r = riseAt(a, i), [cx, cy] = r ? T(...arcApex(A, B, r)) : [(ax + bx) / 2, (ay + by) / 2];
+    let ang = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
+    if (ang > 90) ang -= 180; else if (ang <= -90) ang += 180;
+    out.push({ i, mx: cx + nx * 9, my: cy + ny * 9, ang, hidden: hidden.has(i),
+      txt: r ? `${fmtLen(L)} · rise ${fmtLen(Math.abs(r))}` : fmtLen(L) });
+  }
+  return out;
+}
+// Combined areas are drawn as one shape: where a member's wall lies along a
+// wall of another member of the same combination, that stretch is an inside
+// wall, drawn light and dashed and left undimensioned. Returns, per wall, the
+// covered stretches as [t0, t1] fractions of the wall.
+function innerStretches(a, mates) {
+  const p = a.points, n = p.length, res = [];
+  for (let i = 0; i < n; i++) {
+    const A = p[i], B = p[(i + 1) % n], L = dist(A, B), iv = [];
+    if (L > EPS && !riseAt(a, i)) for (const m of mates) {
+      // Only parts on the same floor of the same building merge: a floor above isn't an inside wall.
+      if (m === a || (m.level || "") !== (a.level || "") || (m.building || "") !== (a.building || "")) continue;
+      const q = m.points, k = q.length;
+      for (let j = 0; j < k; j++) {
+        if (riseAt(m, j)) continue;
+        const C = q[j], D = q[(j + 1) % k];
+        const off = P => Math.abs((B[0] - A[0]) * (P[1] - A[1]) - (B[1] - A[1]) * (P[0] - A[0])) / L;
+        if (off(C) > ON || off(D) > ON) continue;
+        const t = P => ((P[0] - A[0]) * (B[0] - A[0]) + (P[1] - A[1]) * (B[1] - A[1])) / (L * L);
+        const t0 = Math.max(0, Math.min(t(C), t(D))), t1 = Math.min(1, Math.max(t(C), t(D)));
+        if ((t1 - t0) * L > ON) iv.push([t0, t1]);
+      }
+    }
+    iv.sort((x, y) => x[0] - y[0]);
+    const merged = [];
+    for (const v of iv) { const l = merged[merged.length - 1]; if (l && v[0] <= l[1] + 1e-9) l[1] = Math.max(l[1], v[1]); else merged.push(v.slice()); }
+    res.push(merged);
+  }
+  return res;
+}
+function areaSvg(a, T, o, isSel) {
+  const p = a.points, n = p.length, out = [], c = CAT[a.category];
+  const site = a.category === "site", line = a.category === "line", fill = isCalc(a) && !site ? c.fill : "none";
+  const P2 = q => { const s = T(q[0], q[1]); return s[0].toFixed(2) + " " + s[1].toFixed(2); };
+  const d = "M" + outline(a).map(P2).join("L") + (a.closed ? "Z" : "");
+  const ink = isSel ? "#2563eb" : line ? "#4b5563" : "#111827", width = isSel ? 2.5 : line ? 1 : site ? 1.2 : 1.6;
+  const g = isCalc(a) ? groupOf(a, o.groups) : null, inner = g ? innerStretches(a, g.members) : null;
+  if (!inner) {
+    out.push(`<path d="${d}" fill="${fill}" stroke="${ink}" stroke-width="${width}"` +
+      `${site ? ' stroke-dasharray="10 4 2 4"' : ""} stroke-linejoin="miter"/>`);
+  } else {
+    out.push(`<path d="${d}" fill="${fill}" stroke="none"/>`);
+    let solid = "", dashed = "";
+    for (let i = 0; i < n; i++) {
+      const A = p[i], B = p[(i + 1) % n], at = t => [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t];
+      if (riseAt(a, i)) { solid += "M" + P2(A) + arcPoints(A, B, riseAt(a, i)).map(q => "L" + P2(q)).join(""); continue; }
+      let t = 0;
+      for (const [t0, t1] of inner[i]) {
+        if (t0 > t) solid += `M${P2(at(t))}L${P2(at(t0))}`;
+        dashed += `M${P2(at(t0))}L${P2(at(t1))}`; t = t1;
+      }
+      if (t < 1) solid += `M${P2(at(t))}L${P2(B)}`;
+    }
+    out.push(`<path d="${solid}" fill="none" stroke="${ink}" stroke-width="${width}" stroke-linecap="square"/>`);
+    if (dashed) out.push(`<path d="${dashed}" fill="none" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4 3"/>`);
+  }
+  if (o.dims && a.dims) {
+    for (const s of dimSpecs(a, T)) {
+      if (inner && inner[s.i].reduce((t, [t0, t1]) => t + t1 - t0, 0) > 0.99) continue;
+      if (s.hidden && !o.live) continue;
+      out.push(`<text x="${s.mx.toFixed(1)}" y="${s.my.toFixed(1)}" font-size="11" text-anchor="middle" dominant-baseline="middle" ` +
+        `font-family="Arial, Helvetica, sans-serif" fill="${s.hidden ? "#d1d5db" : "#374151"}"` +
+        `${s.hidden ? ' text-decoration="line-through"' : ""} transform="rotate(${s.ang.toFixed(2)} ${s.mx.toFixed(1)} ${s.my.toFixed(1)})">${esc(s.txt)}</text>`);
+    }
+  }
+  if (line) return out.join("");
+  // Label: code, name and size as chosen under "Label shows". Combined areas:
+  // every member shows its name only, and the largest member carries the
+  // combined name and total.
+  const sh = S.show || { name: true, area: true };
+  const [lx, ly] = T(...labelPos(a)), F = `text-anchor="middle" font-family="Arial, Helvetica, sans-serif"`;
+  const head = [sh.code && c.code ? c.code : "", sh.name ? a.name : ""].filter(Boolean).join(" ");
+  let top = [head, 'font-size="12" font-weight="bold" fill="#111827"'];
+  let bottom = sh.area ? [isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), 'font-size="11" fill="#374151"'] : null;
+  if (g) {
+    if (a === g.leader) {
+      top = [head, 'font-size="11" fill="#374151"'];
+      bottom = [`${g.name}${sh.area ? " " + fmtArea(g.total) : ""}`, 'font-size="12" font-weight="bold" fill="#111827"'];
+    } else bottom = null;
+  }
+  if (!top[0]) { top = bottom; bottom = null; }
+  if (top) out.push(`<text x="${lx.toFixed(1)}" y="${(ly - (bottom ? 7 : 0)).toFixed(1)}" ${F} ${top[1]}>${esc(top[0])}</text>`);
+  if (bottom) out.push(`<text x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}" ${F} ${bottom[1]}>${esc(bottom[0])}</text>`);
+  return out.join("");
+}
+function liveSvg(T) {
+  const out = [];
+  if (draw) {
+    const sp = draw.points.map(q => T(q[0], q[1])), sg = outSign(draw.points);
+    const live = outline({ points: draw.points, rise: draw.rise.map(v => (v || 0) * sg), closed: false });
+    out.push(`<polyline points="${live.map(q => T(q[0], q[1]).join(",")).join(" ")}" fill="none" stroke="#2563eb" stroke-width="2"/>`);
+    for (let i = 1; i < draw.points.length; i++) {
+      const L = dist(draw.points[i - 1], draw.points[i]);
+      const mx = (sp[i - 1][0] + sp[i][0]) / 2, my = (sp[i - 1][1] + sp[i][1]) / 2;
+      out.push(`<text x="${mx}" y="${my - 6}" font-size="11" text-anchor="middle" fill="#2563eb" font-family="Arial">${esc(fmtLen(L))}</text>`);
+    }
+    out.push(`<circle cx="${sp[0][0]}" cy="${sp[0][1]}" r="4" fill="#fff" stroke="#2563eb" stroke-width="2"/>`);
+    const e = sp[sp.length - 1];
+    out.push(`<circle cx="${e[0]}" cy="${e[1]}" r="3" fill="#2563eb"/>`);
+  } else {
+    const [px, py] = T(pen[0], pen[1]);
+    out.push(`<path d="M${px - 7} ${py}H${px + 7}M${px} ${py - 7}V${py + 7}" stroke="#2563eb" stroke-width="1.5"/>`);
+  }
+  if (ghost.length > 1) {
+    const sg = ghost.map(q => T(q[0], q[1]));
+    out.push(`<polyline points="${sg.map(q => q.join(",")).join(" ")}" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="5 4"/>`);
+  }
+  if (hover && (tool === "draw" || tool === "calib")) {
+    const [hx, hy] = T(hover.pt[0], hover.pt[1]);
+    out.push(hover.vertex
+      ? `<rect x="${hx - 5}" y="${hy - 5}" width="10" height="10" fill="none" stroke="#dc2626" stroke-width="1.5"/>`
+      : `<circle cx="${hx}" cy="${hy}" r="3" fill="none" stroke="#9ca3af"/>`);
+  }
+  if (calib) {
+    const [cx, cy] = T(calib[0], calib[1]);
+    out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="none" stroke="#dc2626" stroke-width="2"/>`);
+  }
+  return out.join("");
+}
+function render() {
+  svg.innerHTML = scene(view, W(), H(), { grid: true, underlay: true, dims: $("showDims").checked, live: true });
+}
+
+// ---------------------------------------------------------------- combined areas
+// Areas given the same "Combine as" name are reported as one total. A name on
+// only one area combines nothing, and that area is reported on its own.
+function groupsOf() {
+  const g = new Map();
+  for (const a of S.areas) {
+    const k = (a.group || "").trim();
+    if (!k || !isCalc(a)) continue;
+    if (!g.has(k)) g.set(k, { name: k, total: 0, members: [], leader: null });
+    const e = g.get(k);
+    e.total += netAreaOf(a); e.members.push(a);
+    if (!e.leader || areaOf(a) > areaOf(e.leader)) e.leader = a;
+  }
+  for (const [k, e] of g) if (e.members.length < 2) g.delete(k);
+  return g;
+}
+function groupOf(a, groups) { return groups.get((a.group || "").trim()) || null; }
+
+// ---------------------------------------------------------------- side panel
+function totals() {
+  const bld = new Map(); let site = 0;
+  for (const a of S.areas) {
+    if (!isCalc(a)) continue;
+    const v = netAreaOf(a);
+    if (a.category === "site") { site += v; continue; }
+    const key = a.building || "(no building)";
+    if (!bld.has(key)) bld.set(key, { building: key, building_area: 0, by_level: {}, by_category: {} });
+    const t = bld.get(key);
+    t.by_category[a.category] = (t.by_category[a.category] || 0) + v;
+    if (a.included) {
+      t.building_area += v;
+      const lv = a.level || "(no level)";
+      t.by_level[lv] = (t.by_level[lv] || 0) + v;
+    }
+  }
+  return { buildings: [...bld.values()], site };
+}
+function renderPanel() {
+  const it = findSel();
+  $("selNone").hidden = !!it;
+  $("selArea").hidden = !(it && sel.kind === "area");
+  $("selLabel").hidden = !(it && sel.kind === "label");
+  if (it && sel.kind === "area") {
+    if (document.activeElement !== $("sName")) $("sName").value = it.name;
+    if (document.activeElement !== $("sBuilding")) $("sBuilding").value = it.building;
+    if (document.activeElement !== $("sLevel")) $("sLevel").value = it.level;
+    if (document.activeElement !== $("sGroup")) $("sGroup").value = it.group || "";
+    $("sCat").value = it.category; $("sInc").checked = it.included; $("sDims").checked = it.dims;
+    if (document.activeElement !== $("sFactor")) $("sFactor").value = factorOf(it).toFixed(2);
+    $("sNeg").checked = !!it.negative;
+    const adj = factorOf(it) !== 1 || it.negative ? ` (base ${fmtArea(areaOf(it))})` : "";
+    $("sSize").textContent = isCalc(it)
+      ? `${fmtArea(netAreaOf(it))}${adj} · perimeter ${fmtLen(perimeterOf(it))}`
+      : `open line · ${fmtLen(perimeterOf(it))}`;
+    if (document.activeElement !== $("sVec")) $("sVec").value = vectorsOf(it);
+  } else if (it) {
+    if (document.activeElement !== $("lText")) $("lText").value = it.text;
+    $("lSize").value = it.size || 12;
+  }
+  const rows = [...S.areas].sort((a, b) =>
+    (a.category === "site") - (b.category === "site") || (a.building || "").localeCompare(b.building || "") ||
+    (a.level || "").localeCompare(b.level || "") || a.id - b.id);
+  const groups = groupsOf();
+  $("groupList").innerHTML = [...new Set(S.areas.map(a => (a.group || "").trim()).filter(Boolean))]
+    .map(k => `<option value="${esc(k)}">`).join("");
+  const lvls = levelsInUse();
+  if (viewLevel && !lvls.includes(viewLevel)) lvls.push(viewLevel);
+  $("viewLevel").innerHTML = `<option value="">All levels</option>` + lvls.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
+  $("viewLevel").value = viewLevel;
+  let h = `<table><thead><tr><th>Area</th><th>Bldg / level</th><th class="n">${areaUnitLabel()}</th><th title="Counts toward building area">✓</th></tr></thead><tbody>`;
+  for (const a of rows) {
+    const isSel = isPicked("area", a.id);
+    const gm = groupOf(a, groups) ? ` <span class="hint">→ ${esc(a.group.trim())}</span>` : "";
+    h += `<tr data-id="${a.id}" class="${isSel ? "sel" : ""}"><td>${esc(a.name)}${gm}</td>` +
+      `<td>${a.category === "site" ? "site" : esc([a.building, a.level].filter(Boolean).join(" / "))}</td>` +
+      `<td class="n">${isCalc(a) ? fmtArea(netAreaOf(a)).replace(/ .*/, "") : "—"}</td><td>${a.included && isCalc(a) && a.category !== "site" ? "✓" : ""}</td></tr>`;
+  }
+  for (const g of groups.values())
+    h += `<tr class="total"><td colspan="2">${esc(g.name)} <span class="hint">(${g.members.length} combined)</span></td><td class="n">${fmtArea(g.total).replace(/ .*/, "")}</td><td></td></tr>`;
+  const t = totals();
+  for (const b of t.buildings) {
+    for (const [lv, v] of Object.entries(b.by_level))
+      h += `<tr><td colspan="2" class="hint">${esc(b.building)} — ${esc(lv)}</td><td class="n">${fmtArea(v).replace(/ .*/, "")}</td><td></td></tr>`;
+    h += `<tr class="total"><td colspan="2">${esc(b.building)} building area</td><td class="n">${fmtArea(b.building_area).replace(/ .*/, "")}</td><td></td></tr>`;
+  }
+  if (t.site) h += `<tr class="total"><td colspan="2">Site area</td><td class="n">${fmtArea(t.site).replace(/ .*/, "")}</td><td></td></tr>`;
+  h += "</tbody></table>";
+  if (!S.areas.length) h = `<div class="hint">No areas yet. Click a corner on the canvas, then type e.g. <code>R40 D28 L40 C</code>.</div>`;
+  $("summary").innerHTML = h;
+  renderCalcs();
+}
+
+// ---------------------------------------------------------------- area calculations
+// Apex's calculation tree: building → category → area, each area opening to
+// base area, factor, net area and perimeter, with a summary underneath.
+// calcOpen remembers what is expanded, because the panel is rebuilt on every edit.
+const calcOpen = new Map();
+const isCalcOpen = k => calcOpen.has(k) ? calcOpen.get(k) : !k.startsWith("a:");
+function calcKeys() {
+  const keys = [];
+  for (const a of S.areas) if (isCalc(a)) {
+    const b = a.category === "site" ? "Site" : a.building || "(no building)";
+    keys.push("b:" + b, "c:" + b + "|" + a.category, "a:" + a.id);
+  }
+  return [...new Set(keys)];
+}
+function renderCalcs() {
+  const n2 = v => v.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const tree = new Map();   // building -> category -> [areas]
+  for (const a of S.areas) {
+    if (!isCalc(a)) continue;
+    const b = a.category === "site" ? "Site" : a.building || "(no building)";
+    if (!tree.has(b)) tree.set(b, new Map());
+    const cats = tree.get(b);
+    if (!cats.has(a.category)) cats.set(a.category, []);
+    cats.get(a.category).push(a);
+  }
+  const blds = [...tree.keys()].sort((x, y) => (x === "Site") - (y === "Site") || x.localeCompare(y));
+  const t = totals(), u = areaUnitLabel();
+  const node = (k, label, inner, cls = "", id = "") =>
+    `<details data-k="${esc(k)}"${isCalcOpen(k) ? " open" : ""}><summary class="${cls}"${id ? ` data-id="${id}"` : ""}>${label}</summary>${inner}</details>`;
+  let h = "";
+  for (const b of blds) {
+    let inner = "";
+    for (const k of CATS.map(c => c.key).filter(c => tree.get(b).has(c))) {
+      const list = tree.get(b).get(k).sort((x, y) => x.id - y.id);
+      let leaves = "";
+      for (const a of list) {
+        const isSel = isPicked("area", a.id), net = netAreaOf(a);
+        const kv = [["Base area", n2(areaOf(a))], ["Factor", (a.negative ? "−" : "") + factorOf(a).toFixed(2)],
+          ["Net area", n2(net)], ["Perimeter", n2(perimeterOf(a))]];
+        if (a.level && a.category !== "site") kv.unshift(["Level", esc(a.level)]);
+        if (a.category !== "site" && !a.included) kv.push(["Building area", "not counted"]);
+        leaves += node("a:" + a.id, `${esc(a.name)} : <span class="${net < 0 ? "neg" : ""}">${n2(net)}</span>`,
+          kv.map(([l, v]) => `<div class="kv">${l} : ${v}</div>`).join(""), isSel ? "sel" : "", a.id);
+      }
+      const sum = list.reduce((s, a) => s + netAreaOf(a), 0);
+      inner += b === "Site" ? leaves : node("c:" + b + "|" + k, `${esc(CAT[k].label)} : ${n2(sum)}`, leaves);
+    }
+    const bt = t.buildings.find(x => x.building === b);
+    const head = b === "Site" ? `Site : ${n2(t.site)}` : `${esc(b)} : ${n2(bt ? bt.building_area : 0)} <span class="hint">bldg area</span>`;
+    h += node("b:" + b, head, inner);
+  }
+  if (!h) { $("calcs").innerHTML = `<div class="hint">Closed areas appear here with their calculations.</div>`; return; }
+  h += `<div id="calcSum"><div><span>Defined areas</span><span>${S.areas.filter(isCalc).length}</span></div>`;
+  for (const b of t.buildings) h += `<div><span>${esc(b.building)} — building area</span><span>${n2(b.building_area)} ${u}</span></div>`;
+  for (const g of groupsOf().values()) h += `<div><span>${esc(g.name)} (combined)</span><span>${n2(g.total)} ${u}</span></div>`;
+  if (t.site) h += `<div><span>Site area</span><span>${n2(t.site)} ${u}</span></div>`;
+  $("calcs").innerHTML = h + "</div>";
+}
+function syncInfoFields() {
+  for (const k of ["title", "address", "file", "preparer", "date"]) $("i" + k[0].toUpperCase() + k.slice(1)).value = S.info[k] || "";
+  $("units").value = S.units;
+  $("dimFmt").disabled = S.units === "m";
+  const sh = S.show || { name: true, area: true };
+  $("shCode").checked = !!sh.code; $("shName").checked = sh.name !== false; $("shArea").checked = sh.area !== false;
+  $("scaleLbl").textContent = S.units === "m" ? "1:" : '1" ='; $("scaleUnit").textContent = S.units === "m" ? "" : "'";
+}
+
+// ---------------------------------------------------------------- exports
+// Print scale: feet "1 inch = X ft"; metres "1:X". The SVG is laid out at 96 px per inch.
+function exportScale() {
+  const X = parseFloat($("exScale").value);
+  if (!(X > 0)) return null;
+  return { X, zoom: S.units === "m" ? 96 * 39.3701 / X : 96 / X, text: S.units === "m" ? `Scale 1:${fmtNum(X, 2)}` : `Scale 1" = ${fmtNum(X, 2)}'` };
+}
+const PAPER = { letter: [8.5, 11], legal: [8.5, 14], "11in 17in": [11, 17], A4: [8.27, 11.69], A3: [11.69, 16.54] };
+const PRINT_MARGIN = 0.4;
+function paperInches() {
+  const [w, h] = PAPER[$("exPaper").value], land = $("exOrient").value === "landscape";
+  return [(land ? h : w) - 2 * PRINT_MARGIN, (land ? w : h) - 2 * PRINT_MARGIN];
+}
+function exportSvg(opts) {
+  const withTable = $("exTable").checked, sc = exportScale();
+  const pad = 50, titleH = 96;
+  const pts = allPoints(false);
+  if (!pts.length) return null;
+  const b = bbox(pts), bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);
+  const Wd = sc ? Math.max(1000, Math.ceil(bw * sc.zoom + 2 * pad + 60)) : 1400;
+  const zoom = sc ? sc.zoom : Math.min((Wd - 2 * pad - 60) / bw, 1100 / bh);
+  const drawH = Math.ceil(bh * zoom + 2 * pad + 40);
+  const v = { cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, zoom };
+  const body = scene(v, Wd, drawH, { grid: false, underlay: false, dims: $("showDims").checked, live: false, noSel: true });
+  const t = totals(), rows = [];
+  if (withTable) {
+    const list = visAreas().filter(isCalc).sort((a, c) =>
+      (a.category === "site") - (c.category === "site") || (a.building || "").localeCompare(c.building || "") ||
+      (a.level || "").localeCompare(c.level || "") || a.id - c.id);
+    // A factored or deducted area shows its calculation in the category cell.
+    const calc = a => factorOf(a) !== 1 || a.negative
+      ? ` (${fmtArea(areaOf(a))} × ${a.negative ? "−" : ""}${fmtNum(factorOf(a), 2)})` : "";
+    for (const a of list) rows.push([a.name, a.category === "site" ? "Site" : [a.building, a.level].filter(Boolean).join(" — "),
+      CAT[a.category].label + calc(a), fmtArea(netAreaOf(a)), a.included && a.category !== "site" ? "yes" : "", false]);
+    for (const g of groupsOf().values()) {
+      const shown = g.members.filter(visible);
+      if (!shown.length) continue;
+      rows.push([`${g.name} (combined)`, g.members.map(m => m.name).join(" + "), "", fmtArea(g.total), "", true]);
+    }
+    for (const bt of t.buildings) {
+      if (viewLevel && bt.by_level[viewLevel] !== undefined)
+        rows.push([`${bt.building} — ${viewLevel} area`, "", "", fmtArea(bt.by_level[viewLevel]), "", true]);
+      rows.push([`${bt.building} — building area${viewLevel ? " (all levels)" : ""}`, "", "", fmtArea(bt.building_area), "", true]);
+    }
+    if (t.site) rows.push(["Site area", "", "", fmtArea(t.site), "", true]);
+  }
+  const rowH = 22, tableH = rows.length ? rowH * (rows.length + 1) + 40 : 0;
+  const Ht = titleH + drawH + tableH + 30;
+  const F = `font-family="Arial, Helvetica, sans-serif"`, info = S.info;
+  const title = (info.title || "Sketch") + (viewLevel ? ` — ${viewLevel}` : "");
+  const size = sc ? `width="${(Wd / 96).toFixed(3)}in" height="${(Ht / 96).toFixed(3)}in" data-scaled="1"` : `width="${Wd}" height="${Ht}"`;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" ${size} viewBox="0 0 ${Wd} ${Ht}">` +
+    `<rect width="100%" height="100%" fill="#fff"/>` +
+    `<text x="${pad}" y="42" font-size="24" font-weight="bold" ${F} fill="#111827">${esc(title)}</text>` +
+    `<text x="${pad}" y="70" font-size="15" ${F} fill="#374151">${esc(info.address || "")}</text>` +
+    `<text x="${Wd - pad}" y="42" font-size="13" text-anchor="end" ${F} fill="#374151">${esc(info.file ? "File " + info.file : "")}</text>` +
+    `<text x="${Wd - pad}" y="62" font-size="13" text-anchor="end" ${F} fill="#374151">${esc([info.preparer, info.date].filter(Boolean).join(" · "))}</text>` +
+    `<text x="${Wd - pad}" y="82" font-size="11" text-anchor="end" ${F} fill="#6b7280">${sc ? sc.text : "Not to scale"} · dimensions in ${S.units === "m" ? "metres" : "feet"}</text>` +
+    `<line x1="${pad}" y1="${titleH - 8}" x2="${Wd - pad}" y2="${titleH - 8}" stroke="#9ca3af"/>` +
+    `<g transform="translate(0 ${titleH})">${body}</g>` + northArrow(Wd - pad - 20, titleH + 40);
+  if (rows.length) {
+    let y = titleH + drawH + 20;
+    const span = Wd - 2 * pad, cols = [0, .29, .51, .71, .84].map(f => pad + f * span), sizeX = cols[3] + .09 * span;
+    s += `<line x1="${pad}" y1="${y}" x2="${Wd - pad}" y2="${y}" stroke="#9ca3af"/>`;
+    y += rowH;
+    ["Area", "Building / level", "Category", "Size", "In bldg area"].forEach((h, i) =>
+      s += `<text x="${i === 3 ? sizeX : cols[i]}" y="${y}" font-size="13" font-weight="bold" ${F} ${i === 3 ? 'text-anchor="end"' : ""}>${h}</text>`);
+    for (const r of rows) {
+      y += rowH;
+      r.slice(0, 5).forEach((c, i) =>
+        s += `<text x="${i === 3 ? sizeX : cols[i]}" y="${y}" font-size="13" ${F} ${r[5] ? 'font-weight="bold"' : ""} ${i === 3 ? 'text-anchor="end"' : ""}>${esc(c)}</text>`);
+    }
+  }
+  return s + "</svg>";
+}
+// At a set scale the plan has a real size: say so when it won't fit the paper.
+function scaleFitNote(svgText) {
+  const sc = exportScale(), m = svgText.match(/viewBox="0 0 (\d+) (\d+)"/);
+  if (!sc || !m) return "";
+  const w = +m[1] / 96, h = +m[2] / 96, [pw, ph] = paperInches();
+  const paper = $("exPaper").selectedOptions[0].textContent + " " + $("exOrient").value;
+  return w > pw + 0.01 || h > ph + 0.01
+    ? `⚠ At ${sc.text.replace("Scale ", "")} the sheet is ${fmtNum(w, 1)} × ${fmtNum(h, 1)} in; ${paper} holds ${fmtNum(pw, 1)} × ${fmtNum(ph, 1)} in. Use a bigger scale number or paper.`
+    : `${sc.text}: ${fmtNum(w, 1)} × ${fmtNum(h, 1)} in, fits ${paper}.`;
+}
+function northArrow(x, y) {
+  return `<g transform="translate(${x} ${y})"><path d="M0 -22L8 10L0 4L-8 10Z" fill="#111827"/>` +
+    `<text x="0" y="26" font-size="13" text-anchor="middle" font-family="Arial" font-weight="bold">N</text></g>`;
+}
+function areasJson() {
+  const toSf = v => S.units === "m" ? v / (FT_TO_M * FT_TO_M) : v;
+  const toM2 = v => S.units === "m" ? v : v * FT_TO_M * FT_TO_M;
+  const r1 = v => Math.round(v * 10) / 10;
+  const both = v => ({ sq_ft: r1(toSf(v)), sq_m: r1(toM2(v)) });
+  const t = totals(), groups = groupsOf();
+  return {
+    format: "jks-sketch-areas", version: 1,
+    generated: new Date().toISOString(),
+    drawn_in: S.units === "m" ? "metres" : "feet",
+    title: S.info.title, property: S.info.address, file_number: S.info.file,
+    prepared_by: S.info.preparer, sketch_date: S.info.date,
+    areas: S.areas.filter(isCalc).map(a => ({
+      name: a.name, building: a.building, level: a.level,
+      category: a.category, category_label: CAT[a.category].label,
+      included_in_building_area: a.category !== "site" && a.included,
+      combined_as: groupOf(a, groups) ? a.group.trim() : null,
+      base_area: both(areaOf(a)), factor: factorOf(a), negative: !!a.negative,
+      area: both(netAreaOf(a)),
+      perimeter: S.units === "m" ? { m: r1(perimeterOf(a)) } : { ft: r1(perimeterOf(a)) },
+    })),
+    buildings: t.buildings.map(b => ({
+      building: b.building, building_area: both(b.building_area),
+      by_level: Object.fromEntries(Object.entries(b.by_level).map(([k, v]) => [k, both(v)])),
+      by_category: Object.fromEntries(Object.entries(b.by_category).map(([k, v]) => [k, both(v)])),
+    })),
+    combined: [...groups.values()].map(g => ({ name: g.name, members: g.members.map(m => m.name), area: both(g.total) })),
+    site_area: t.site ? both(t.site) : null,
+  };
+}
+function baseName() {
+  const f = (S.info.file || "").trim().replace(/[\\/:*?"<>|]+/g, "-");
+  return f ? f + " sketch" : "sketch";
+}
+// Edge/Chrome let you choose the folder (the job's dropzone); others download.
+async function saveFile(name, blob, desc, mime, ext) {
+  if (window.showSaveFilePicker) {
+    try {
+      const h = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: desc, accept: { [mime]: [ext] } }] });
+      const w = await h.createWritable(); await w.write(blob); await w.close();
+      return status(`Saved ${h.name}.`, "ok");
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  status(`Downloaded ${name}.`, "ok");
+}
+function needAreas() { if (!S.areas.length) { status("Nothing to export yet.", "bad"); return false; } return true; }
+
+// ---------------------------------------------------------------- status
+function status(msg, cls) { const s = $("status"); s.textContent = msg || ""; s.className = cls || ""; }
+
+// ---------------------------------------------------------------- tools
+function setTool(t) {
+  tool = t; calib = null;
+  for (const [id, k] of [["tDraw", "draw"], ["tSelect", "select"], ["tLabel", "label"], ["tCalib", "calib"], ["tMoveU", "moveU"]])
+    $(id).classList.toggle("on", k === t);
+  svg.classList.toggle("select", t === "select" || t === "moveU");
+  if (t === "calib") status(underlay ? "Calibrate: click one end of a wall of known length on the image." : "Load an underlay image first.", underlay ? "" : "bad");
+  render();
+}
+
+// ---------------------------------------------------------------- events: command line
+const cmd = $("cmd");
+cmd.addEventListener("input", () => {
+  const line = cmd.value;
+  ghost = [];
+  if (!line.trim()) { cmd.classList.remove("bad"); return render(); }
+  const r = parseLine(line);
+  if (r.err) { cmd.classList.add("bad"); status(r.err, "bad"); return render(); }
+  cmd.classList.remove("bad"); status("");
+  let cur = draw ? lastPt().slice() : pen.slice();
+  const start = draw ? draw.points[0] : cur.slice();
+  const corners = [cur.slice()], rises = [];
+  for (let o of r.ops) {
+    if (o.op === "turn" || o.op === "run") {
+      o = resolveOp(o, (draw ? draw.points.slice(0, -1) : []).concat(corners));
+      if (o.err) { status(o.err, "bad"); break; }
+    }
+    if (o.op === "move") { cur = [cur[0] + o.dx, cur[1] + o.dy]; corners.length = 0; corners.push(cur.slice()); rises.length = 0; }
+    else if (o.op === "seg") { cur = [cur[0] + o.dx, cur[1] + o.dy]; rises.push(o.rise || 0); corners.push(cur.slice()); }
+    else if (o.op === "close") { rises.push(riseFrom(o.curve, dist(cur, start)) || 0); corners.push(start.slice()); }
+    else if (o.op === "closewalls") {
+      const full = (draw ? draw.points.slice(0, -1) : []).concat(corners), w = wallsClosure(full);
+      if (w.err) status(w.err, "bad");
+      else {
+        const sgw = outSign(full.concat(w.points));
+        corners.push(...w.points.map(p => p.slice()), full[0].slice()); rises.push(...w.rises.map(v => v * sgw));
+        status(`CW traces ${w.rises.length} wall(s) of ${w.names.join(", ")}.`);
+      }
+    }
+  }
+  // A diagonal straight close where both ends sit on existing walls: point at CW.
+  if (r.ops.length && r.ops[r.ops.length - 1].op === "close") {
+    const full = (draw ? draw.points.slice(0, -1) : []).concat(corners.slice(0, -1)), l = full[full.length - 1];
+    if (full.length >= 2 && Math.abs(full[0][0] - l[0]) > 1e-3 && Math.abs(full[0][1] - l[1]) > 1e-3 && !wallsClosure(full).err)
+      status("The closing wall would be diagonal. CW closes along the existing walls instead.");
+  }
+  // Curves preview "out of the room" by the shape typed so far.
+  const sg = outSign((draw ? draw.points.slice(0, -1) : []).concat(corners));
+  ghost = outline({ points: corners, rise: rises.map(v => v * sg), closed: false });
+  render();
+});
+function submitCmd(line) {
+  if (line === "?") { cmd.value = ""; return showHelp(true); }
+  const r = parseLine(line);
+  if (r.err) return status(r.err, "bad");
+  const res = applyOps(r.ops);
+  ghost = [];
+  if (res.err) { status(res.err, "bad"); return render(); }
+  cmd.value = "";
+  status(res.msg || (draw ? `${draw.points.length - 1} wall(s) — keep typing, C to close.` : ""), res.msg ? "ok" : "");
+  renderPanel(); render();
+}
+const ARROW_DIR = { ArrowRight: "R", ArrowLeft: "L", ArrowUp: "U", ArrowDown: "D" };
+cmd.addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const line = cmd.value.trim();
+    if (!line) {
+      if (draw && draw.points.length >= 3) status(finish(true), "ok");
+      return;
+    }
+    submitCmd(line);
+  } else if (ARROW_DIR[e.key] && !e.ctrlKey && !e.altKey) {
+    // Number pad drawing (Apex style): type a length, press an arrow, and the
+    // wall is drawn that way at once: 25.5 then → is R25.5.
+    const toks = cmd.value.trim().split(/\s+/), last = toks[toks.length - 1] || "";
+    if (!cmd.value.trim() || !(parseLen(last) > 0)) return;
+    e.preventDefault(); e.stopPropagation();
+    toks[toks.length - 1] = ARROW_DIR[e.key] + last;
+    submitCmd(toks.join(" "));
+  } else if (e.key === "Backspace" && !cmd.value && draw) {
+    e.preventDefault(); undo();
+  }
+});
+
+// ---------------------------------------------------------------- events: keyboard
+document.addEventListener("keydown", e => {
+  if (e.key === "F1") { e.preventDefault(); return showHelp($("help").hidden); }
+  const inField = e.target !== cmd && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if (inField) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); return e.shiftKey ? redo() : undo(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); return redo(); }
+  if (e.key === "Escape") {
+    if (!$("help").hidden) return showHelp(false);
+    if (!$("lib").hidden) { $("lib").hidden = true; return; }
+    if (draw) { draw = null; status("Area cancelled."); }
+    else { setSel(null); calib = null; }
+    cmd.value = ""; ghost = []; renderPanel(); return render();
+  }
+  if (e.target === cmd && cmd.value) return;
+  const mod = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
+  if (mod && key === "c") { if (copySel()) e.preventDefault(); return; }
+  if (mod && key === "v") { e.preventDefault(); return pasteClip(); }
+  if (mod && key === "a") {
+    e.preventDefault();
+    picks = visAreas().map(a => ({ kind: "area", id: a.id })).concat(visLabels().map(l => ({ kind: "label", id: l.id })));
+    sel = picks[0] || null; renderPanel(); return render();
+  }
+  const items = pickedItems();
+  if (items.length && e.key === "Delete") { e.preventDefault(); return deleteSel(); }
+  const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+  if (items.length && arrows[e.key]) {
+    e.preventDefault();
+    const g = (parseFloat($("snap").value) || 1) * (e.shiftKey ? 10 : 1), [dx, dy] = arrows[e.key].map(v => v * g);
+    pushHistory(); for (const x of items) moveItem(x, dx, dy); commit();
+  }
+});
+function moveItem({ it, kind }, dx, dy) {
+  if (kind === "area") it.points = it.points.map(p => [round4(p[0] + dx), round4(p[1] + dy)]);
+  else { it.x = round4(it.x + dx); it.y = round4(it.y + dy); }
+}
+function deleteSel() {
+  const items = pickedItems(); if (!items.length) return;
+  pushHistory();
+  const gone = new Set(items.map(x => x.it));
+  S.areas = S.areas.filter(a => !gone.has(a)); S.labels = S.labels.filter(l => !gone.has(l));
+  setSel(null); commit();
+}
+
+// ---------------------------------------------------------------- events: mouse
+let drag = null;
+svg.addEventListener("contextmenu", e => e.preventDefault());
+svg.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = svg.getBoundingClientRect(), before = s2w(e.clientX - r.left, e.clientY - r.top);
+  view.zoom = Math.max(0.05, Math.min(400, view.zoom * Math.exp(-e.deltaY * 0.0015)));
+  const after = s2w(e.clientX - r.left, e.clientY - r.top);
+  view.cx += before[0] - after[0]; view.cy += before[1] - after[1];
+  render();
+}, { passive: false });
+svg.addEventListener("mousedown", e => {
+  const r = svg.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, w = s2w(sx, sy);
+  if (e.button !== 0) { drag = { kind: "pan", sx, sy, cx: view.cx, cy: view.cy }; svg.classList.add("pan"); return; }
+  if (tool === "draw") {
+    let p = snapPoint(w).pt;
+    if (!draw) { pen = p; startDraw(p); status("Start point set — type walls (e.g. R40 D28 L40 C) or click corners."); }
+    else {
+      if (e.shiftKey && !snapPoint(w).vertex) {   // keep the wall square
+        const l = lastPt();
+        p = Math.abs(p[0] - l[0]) > Math.abs(p[1] - l[1]) ? [p[0], l[1]] : [l[0], p[1]];
+      }
+      if (draw.points.length >= 3 && dist(p, draw.points[0]) < EPS) status(finish(true, true), "ok");
+      else if (dist(p, lastPt()) > EPS) draw.points.push(p);
+    }
+    renderPanel(); render(); cmd.focus();
+  } else if (tool === "select") {
+    const h = hitTest(w);
+    if (h && h.kind === "dim") {
+      // Clicking a dimension hides it (or shows it again): hidden ones stay faint on screen, absent from exports.
+      const a = S.areas.find(x => x.id === h.id);
+      pushHistory();
+      const hd = new Set(a.hideDims || []);
+      hd.has(h.wall) ? hd.delete(h.wall) : hd.add(h.wall);
+      a.hideDims = [...hd].sort((x, y) => x - y);
+      setSel({ kind: "area", id: a.id }); commit();
+      return status(hd.has(h.wall) ? "Dimension hidden (click it again to show it)." : "Dimension shown.", "ok");
+    }
+    if (h && e.shiftKey) { togglePick({ kind: h.kind, id: h.id }); renderPanel(); return render(); }
+    if (!h) {
+      if (!e.shiftKey) setSel(null);
+      drag = { kind: "fence", w0: w, w1: w, add: e.shiftKey };
+      renderPanel(); return render();
+    }
+    if (!isPicked(h.kind, h.id)) setSel({ kind: h.kind, id: h.id });
+    else sel = { kind: h.kind, id: h.id };
+    pushHistory();
+    drag = h.onLabel && picks.length === 1
+      ? { kind: "label", it: findSel(), w0: w, last: [0, 0], moved: false }
+      : { kind: "item", items: pickedItems(), w0: w, last: [0, 0], moved: false };
+    renderPanel(); render();
+  } else if (tool === "label") {
+    let text = $("nLabel").value.trim();
+    if (!text) text = (prompt("Label text (or fill in Label text in the panel to place it with one click):") || "").trim();
+    if (text) {
+      pushHistory();
+      const p = snapPoint(w).pt, l = { id: S.nextId++, x: p[0], y: p[1], text, size: 12, level: viewLevel || undefined };
+      S.labels.push(l); setSel({ kind: "label", id: l.id }); rememberLabel(text); commit();
+    }
+  } else if (tool === "calib") {
+    if (!underlay) return status("Load an underlay image first.", "bad");
+    if (!calib) { calib = w; status("Now click the other end of that wall."); render(); }
+    else {
+      const d = dist(calib, w), txt = prompt(`Real length between those two points (${S.units === "m" ? "metres" : "feet, e.g. 40 or 40'6"}):`);
+      const D = txt ? parseLen(txt.trim()) : NaN;
+      if (D > 0 && d > EPS) {
+        const k = D / d;
+        underlay.x = calib[0] + (underlay.x - calib[0]) * k; underlay.y = calib[1] + (underlay.y - calib[1]) * k;
+        underlay.scale *= k;
+        status(`Underlay scaled ×${fmtNum(k, 3)}.`, "ok");
+      } else if (txt !== null) status("Calibration cancelled — no valid length.", "bad");
+      calib = null; setTool("draw"); fit();
+    }
+  } else if (tool === "moveU" && underlay) {
+    drag = { kind: "underlay", w0: w, x: underlay.x, y: underlay.y };
+  }
+});
+window.addEventListener("mousemove", e => {
+  const r = svg.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, w = s2w(sx, sy);
+  if (sx >= 0 && sy >= 0 && sx <= r.width && sy <= r.height) {
+    $("coords").textContent = `${fmtNum(w[0], 2)}, ${fmtNum(w[1], 2)} ${S.units}`;
+    hover = snapPoint(w);
+  }
+  if (!drag) { if (tool === "draw" || tool === "calib") render(); return; }
+  if (drag.kind === "pan") {
+    view.cx = drag.cx - (sx - drag.sx) / view.zoom; view.cy = drag.cy + (sy - drag.sy) / view.zoom;
+  } else if (drag.kind === "underlay") {
+    underlay.x = drag.x + w[0] - drag.w0[0]; underlay.y = drag.y + w[1] - drag.w0[1];
+  } else if (drag.kind === "fence") {
+    drag.w1 = w;
+  } else if (drag.kind === "item" || drag.kind === "label") {
+    const g = parseFloat($("snap").value) || 0;
+    let dx = w[0] - drag.w0[0], dy = w[1] - drag.w0[1];
+    if (g > 0 && drag.kind === "item") { dx = Math.round(dx / g) * g; dy = Math.round(dy / g) * g; }
+    const ddx = dx - drag.last[0], ddy = dy - drag.last[1];
+    if (Math.abs(ddx) > EPS || Math.abs(ddy) > EPS) {
+      drag.moved = true;
+      if (drag.kind === "label") drag.it.labelOffset = [drag.it.labelOffset[0] + ddx, drag.it.labelOffset[1] + ddy];
+      else for (const x of drag.items) moveItem(x, ddx, ddy);
+      drag.last = [dx, dy];
+    }
+  }
+  render();
+  if (drag.kind === "fence") {
+    const T = (x, y) => w2s(view, W(), H(), x, y), [ax, ay] = T(...drag.w0), [bx, by] = T(...drag.w1);
+    svg.insertAdjacentHTML("beforeend", `<rect id="fence" x="${Math.min(ax, bx)}" y="${Math.min(ay, by)}" width="${Math.abs(bx - ax)}" height="${Math.abs(by - ay)}"/>`);
+  }
+});
+window.addEventListener("mouseup", () => {
+  if (drag && (drag.kind === "item" || drag.kind === "label")) {
+    if (!drag.moved) history.pop();   // a plain click is not an edit
+    commit();
+  }
+  if (drag && drag.kind === "fence") {
+    // Fence: everything wholly inside the box is selected (Shift adds to the selection).
+    const b = bbox([drag.w0, drag.w1]), inside = p => p[0] >= b.x0 && p[0] <= b.x1 && p[1] >= b.y0 && p[1] <= b.y1;
+    if (dist(drag.w0, drag.w1) * view.zoom > 4) {
+      for (const a of visAreas()) if (outline(a).every(inside) && !isPicked("area", a.id)) picks.push({ kind: "area", id: a.id });
+      for (const l of visLabels()) if (inside([l.x, l.y]) && !isPicked("label", l.id)) picks.push({ kind: "label", id: l.id });
+      sel = sel && isPicked(sel.kind, sel.id) ? sel : picks[0] || null;
+      if (picks.length > 1) status(`${picks.length} items selected: drag, arrow keys, Delete, Ctrl+C, Rotate… act on all of them.`);
+    }
+    drag = null; renderPanel(); render();
+  }
+  drag = null; svg.classList.remove("pan");
+});
+svg.addEventListener("mouseleave", () => { hover = null; render(); });
+
+// ---------------------------------------------------------------- events: panel
+function onSelEdit(id, fn, evt = "input") {
+  $(id).addEventListener(evt, () => {
+    const it = findSel(); if (!it) return;
+    if (!$(id).dataset.dirty) { pushHistory(); $(id).dataset.dirty = "1"; }
+    fn(it, $(id)); commit();
+  });
+  $(id).addEventListener("blur", () => delete $(id).dataset.dirty);
+}
+onSelEdit("sName", (a, el) => a.name = el.value);
+onSelEdit("sBuilding", (a, el) => a.building = el.value);
+onSelEdit("sLevel", (a, el) => a.level = el.value);
+onSelEdit("sGroup", (a, el) => a.group = el.value);
+onSelEdit("sCat", (a, el) => {
+  // A name still at its default follows the category ("Main floor 2" -> "Garage").
+  const wasDefault = new RegExp(`^${CAT[a.category].label.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}( \\d+)?$`).test(a.name);
+  a.category = el.value; a.included = CAT[el.value].inc; a.factor = CAT[el.value].factor ?? 1; delete el.dataset.dirty;
+  if (wasDefault) { const others = S.areas.filter(x => x !== a); a.name = defaultName(a, others); }
+}, "change");
+onSelEdit("sInc", (a, el) => { a.included = el.checked; delete el.dataset.dirty; }, "change");
+onSelEdit("sDims", (a, el) => { a.dims = el.checked; delete el.dataset.dirty; }, "change");
+onSelEdit("sFactor", (a, el) => { const v = parseFloat(el.value); if (v >= 0) a.factor = v; });
+onSelEdit("sNeg", (a, el) => { a.negative = el.checked; delete el.dataset.dirty; }, "change");
+onSelEdit("lText", (l, el) => l.text = el.value);
+onSelEdit("lSize", (l, el) => l.size = Math.max(6, Math.min(48, +el.value || 12)));
+$("sApply").addEventListener("click", () => {
+  const a = findSel(); if (!a) return;
+  const r = parseLine($("sVec").value);
+  if (r.err) return status(r.err, "bad");
+  const pts = [a.points[0].slice()], rise = [];
+  let closed = false, closeCurve = null;
+  for (let o of r.ops) {
+    if (o.op === "turn" || o.op === "run") { o = resolveOp(o, pts); if (o.err) return status(o.err, "bad"); }
+    if (o.op === "seg") { const l = pts[pts.length - 1]; rise[pts.length - 1] = o.rise || 0; pts.push([round4(l[0] + o.dx), round4(l[1] + o.dy)]); }
+    else if (o.op === "close") { closed = true; closeCurve = o.curve; }
+    else if (o.op === "move") return status("m (move) isn't allowed when editing vectors.", "bad");
+    else if (o.op === "closewalls") return status("CW works while drawing. Here the traced walls are ordinary walls: edit them directly.", "bad");
+  }
+  if (closed && pts.length >= 4 && dist(pts[pts.length - 1], pts[0]) < 1e-3) pts.pop();
+  if (pts.length < (closed ? 3 : 2)) return status("Too few walls.", "bad");
+  if (closed && closeCurve) {
+    const cr = riseFrom(closeCurve, dist(pts[pts.length - 1], pts[0]));
+    if (Number.isNaN(cr)) return status(`C: ${CURVE_ERR}`, "bad");
+    rise[pts.length - 1] = cr;
+  }
+  rise.length = closed ? pts.length : pts.length - 1;
+  const sg = closed ? outSign(pts) : 1;
+  pushHistory();
+  // Hidden dimensions follow their wall while the wall count is unchanged.
+  if (pts.length !== a.points.length || closed !== a.closed) a.hideDims = [];
+  a.points = pts; a.closed = closed; a.rise = Array.from(rise, v => (v || 0) * sg);
+  $("sVec").blur(); commit();
+  status("Applied. " + (closed ? closingNote(pts) : ""), "ok");
+});
+$("sRot").addEventListener("click", () => { const a = findSel(); if (a) transformArea(a, (x, y) => [-y, x]); });
+$("sFlipH").addEventListener("click", () => { const a = findSel(); if (a) transformArea(a, (x, y) => [-x, y], true); });
+$("sFlipV").addEventListener("click", () => { const a = findSel(); if (a) transformArea(a, (x, y) => [x, -y], true); });
+$("sDup").addEventListener("click", () => {
+  const a = findSel(); if (!a) return;
+  pushHistory();
+  const b = JSON.parse(JSON.stringify(a)); b.id = S.nextId++; b.name = a.name + " (copy)";
+  const bb = bbox(a.points), off = (bb.x1 - bb.x0) + (parseFloat($("snap").value) || 1) * 5;
+  b.points = b.points.map(p => [round4(p[0] + off), p[1]]);
+  S.areas.push(b); setSel({ kind: "area", id: b.id }); commit();
+});
+$("sDel").addEventListener("click", deleteSel);
+$("lDel").addEventListener("click", deleteSel);
+$("summary").addEventListener("click", e => {
+  const tr = e.target.closest("tr[data-id]"); if (!tr) return;
+  setSel({ kind: "area", id: +tr.dataset.id }); renderPanel(); render();
+});
+// Toggle by hand rather than letting <details> do it, so the state survives the rebuild.
+$("calcs").addEventListener("click", e => {
+  const s = e.target.closest("summary"); if (!s) return;
+  e.preventDefault();
+  const k = s.parentElement.dataset.k;
+  calcOpen.set(k, !isCalcOpen(k));
+  if (s.dataset.id) setSel({ kind: "area", id: +s.dataset.id });
+  renderPanel(); render();
+});
+$("cExpand").onclick = () => { for (const k of calcKeys()) calcOpen.set(k, true); renderCalcs(); };
+// As in Apex, Collapse all still shows every area's net figure; it folds only the detail.
+$("cCollapse").onclick = () => { for (const k of calcKeys()) calcOpen.set(k, !k.startsWith("a:")); renderCalcs(); };
+for (const k of ["title", "address", "file", "preparer", "date"]) {
+  const el = $("i" + k[0].toUpperCase() + k.slice(1));
+  el.addEventListener("change", () => { pushHistory(); S.info[k] = el.value; commit(); });
+}
+
+// ---------------------------------------------------------------- events: toolbar
+$("tDraw").onclick = () => setTool("draw");
+$("tSelect").onclick = () => { if (draw) { draw = null; } setTool("select"); };
+$("tLabel").onclick = () => setTool("label");
+$("tCalib").onclick = () => setTool("calib");
+$("tMoveU").onclick = () => setTool("moveU");
+$("bUndo").onclick = undo; $("bRedo").onclick = redo; $("bFit").onclick = fit;
+$("showDims").onchange = render;
+$("dimFmt").onchange = () => { render(); renderPanel(); };
+$("bNew").onclick = () => {
+  if (S.areas.length && !confirm("Start a new sketch? Unsaved work is lost (Undo can bring it back).")) return;
+  pushHistory();
+  const keepUnits = S.units; S = emptySketch(); S.units = keepUnits; setCats(defaultCats());
+  draw = null; setSel(null); pen = [0, 0]; viewLevel = ""; syncInfoFields(); commit(); fit();
+};
+$("units").onchange = () => {
+  const to = $("units").value; if (to === S.units) return;
+  const k = to === "m" ? FT_TO_M : 1 / FT_TO_M;
+  pushHistory();
+  const sc = p => [round4(p[0] * k), round4(p[1] * k)];
+  for (const a of S.areas) { a.points = a.points.map(sc); a.rise = (a.rise || []).map(v => round4((v || 0) * k)); a.labelOffset = sc(a.labelOffset); }
+  for (const l of S.labels) [l.x, l.y] = sc([l.x, l.y]);
+  if (underlay) { underlay.x *= k; underlay.y *= k; underlay.scale *= k; }
+  pen = sc(pen); view.cx *= k; view.cy *= k; view.zoom /= k;
+  S.units = to; $("snap").value = to === "m" ? "0.1" : "1"; $("dimDec").value = to === "m" ? "2" : "1"; $("exScale").value = "";
+  draw = null; syncInfoFields(); commit();
+  status(`Converted to ${to === "m" ? "metres" : "feet"}.`, "ok");
+};
+$("bSave").onclick = () => {
+  const data = JSON.parse(snapshot());
+  if (underlay) data.underlay = underlay;
+  saveFile(baseName() + ".sketch.json", new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }),
+    "JKS sketch", "application/json", ".json");
+};
+$("bOpen").onclick = () => $("fOpen").click();
+$("fOpen").onchange = async () => {
+  const f = $("fOpen").files[0]; $("fOpen").value = ""; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (data.format !== "jks-sketch") throw new Error("not a JKS sketch file (areas.json is an output — open the .sketch.json)");
+    pushHistory();
+    underlay = data.underlay || null; delete data.underlay;
+    S = Object.assign(emptySketch(), data);
+    draw = null; setSel(null); viewLevel = ""; afterLoad(); fit(); status(`Opened ${f.name}.`, "ok");
+  } catch (err) { status("Could not open: " + err.message, "bad"); }
+};
+$("bImg").onclick = () => $("fImg").click();
+$("fImg").onchange = () => {
+  const f = $("fImg").files[0]; $("fImg").value = ""; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      // Start the image ~100 units wide (60 m in metres), top-left at the view's top-left.
+      const scale = (S.units === "m" ? 30 : 100) / img.width;
+      const tl = s2w(40, 40);
+      underlay = { src: rd.result, w: img.width, h: img.height, x: tl[0], y: tl[1], scale, rot: 0, opacity: $("uOpacity").value / 100 };
+      $("uRot").value = 0; fit(); setTool("calib");
+    };
+    img.src = rd.result;
+  };
+  rd.readAsDataURL(f);
+};
+$("uOpacity").oninput = () => { if (underlay) { underlay.opacity = $("uOpacity").value / 100; render(); } };
+$("uRot").oninput = () => { if (underlay) { underlay.rot = +$("uRot").value || 0; render(); } };
+$("bClearU").onclick = () => { underlay = null; if (tool === "calib" || tool === "moveU") setTool("draw"); render(); };
+// A level view exports that level: the file name says which.
+const exportName = () => baseName() + (viewLevel ? " " + viewLevel.replace(/[\\/:*?"<>|]+/g, "-") : "");
+$("bSvg").onclick = () => {
+  if (!needAreas()) return;
+  saveFile(exportName() + ".svg", new Blob([exportSvg()], { type: "image/svg+xml" }), "SVG image", "image/svg+xml", ".svg");
+};
+$("bPng").onclick = () => {
+  if (!needAreas()) return;
+  const s = exportSvg(), m = s.match(/viewBox="0 0 (\d+) (\d+)"/), k = 2;
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = +m[1] * k; c.height = +m[2] * k;
+    const g = c.getContext("2d"); g.scale(k, k); g.drawImage(img, 0, 0, +m[1], +m[2]);
+    c.toBlob(b => saveFile(exportName() + ".png", b, "PNG image", "image/png", ".png"), "image/png");
+  };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(s);
+};
+$("bAreas").onclick = () => {
+  if (!needAreas()) return;
+  saveFile(baseName() + " areas.json", new Blob([JSON.stringify(areasJson(), null, 2)], { type: "application/json" }),
+    "Areas", "application/json", ".json");
+};
+$("bPrint").onclick = () => {
+  if (!needAreas()) return;
+  const s = exportSvg(), note = scaleFitNote(s);
+  let ps = $("pageStyle");
+  if (!ps) { ps = document.createElement("style"); ps.id = "pageStyle"; document.head.appendChild(ps); }
+  ps.textContent = `@page { size: ${$("exPaper").value} ${$("exOrient").value}; margin: ${PRINT_MARGIN}in; }`;
+  if (note) status(note, note.startsWith("⚠") ? "bad" : "ok");
+  $("printArea").innerHTML = s; window.print();
+};
+for (const id of ["exScale", "exPaper", "exOrient"]) $(id).addEventListener("change", () => {
+  if (S.areas.length) { const n = scaleFitNote(exportSvg() || ""); if (n) status(n, n.startsWith("⚠") ? "bad" : "ok"); }
+});
+function showHelp(on) { $("help").hidden = !on; if (!on) cmd.focus(); }
+$("bHelp").onclick = () => showHelp(true);
+$("bHelpClose").onclick = () => showHelp(false);
+window.addEventListener("resize", render);
+
+// ---------------------------------------------------------------- levels, label options, rotate
+$("viewLevel").onchange = () => {
+  viewLevel = $("viewLevel").value; setSel(null); draw = null;
+  if (viewLevel) $("nLevel").value = viewLevel;   // new areas go on the level being shown
+  renderPanel(); fit();
+  status(viewLevel ? `Showing ${viewLevel} only. Exports are of this level.` : "Showing all levels.");
+};
+for (const [id, k] of [["shCode", "code"], ["shName", "name"], ["shArea", "area"]])
+  $(id).onchange = () => { pushHistory(); S.show = Object.assign({}, S.show, { [k]: $(id).checked }); commit(); };
+$("dimDec").onchange = () => { render(); renderPanel(); };
+// Rotate the selection, or everything shown, about its middle. Positive =
+// counter-clockwise. Turning the whole sketch turns the underlay with it.
+$("bRotate").onclick = () => {
+  const txt = prompt("Rotate by how many degrees? (positive = counter-clockwise, e.g. 90, -12.5)", "90");
+  const deg = parseFloat(txt);
+  if (!isFinite(deg) || !deg) return;
+  const items = picks.length ? pickedItems() : visAreas().map(it => ({ it, kind: "area" })).concat(visLabels().map(it => ({ it, kind: "label" })));
+  if (!items.length) return status("Nothing to rotate.", "bad");
+  const pts = items.flatMap(({ it, kind }) => kind === "area" ? it.points : [[it.x, it.y]]), b = bbox(pts);
+  const c = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2], r = deg * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+  const rot = p => [round4(c[0] + (p[0] - c[0]) * cs - (p[1] - c[1]) * sn), round4(c[1] + (p[0] - c[0]) * sn + (p[1] - c[1]) * cs)];
+  pushHistory();
+  for (const { it, kind } of items) {
+    if (kind === "area") { it.points = it.points.map(rot); const o = it.labelOffset; it.labelOffset = [o[0] * cs - o[1] * sn, o[0] * sn + o[1] * cs]; }
+    else [it.x, it.y] = rot([it.x, it.y]);
+  }
+  if (!picks.length && underlay) { [underlay.x, underlay.y] = rot([underlay.x, underlay.y]); underlay.rot -= deg; $("uRot").value = underlay.rot; }
+  commit();
+  status(`Rotated ${picks.length ? "the selection" : "the sketch"} ${fmtNum(deg, 2)}°.`, "ok");
+};
+
+// ---------------------------------------------------------------- copy / paste
+// Pasting while one level is shown puts the copy on that level, in place: copy
+// the main floor, show Upper, paste, and the floor plate is there to edit.
+function copySel() {
+  const items = pickedItems();
+  if (!items.length) return false;
+  clip = JSON.parse(JSON.stringify(items.map(({ it, kind }) => ({ kind, it }))));
+  status(`Copied ${items.length} item(s).`, "ok");
+  return true;
+}
+function pasteClip() {
+  if (!clip || !clip.length) return status("Nothing copied.", "bad");
+  const pts = clip.flatMap(({ kind, it }) => kind === "area" ? it.points : [[it.x, it.y]]), b = bbox(pts);
+  const toLevel = viewLevel && clip.some(({ it }) => (it.level || "") !== viewLevel);
+  const off = toLevel ? 0 : (b.x1 - b.x0) + (parseFloat($("snap").value) || 1) * 5;
+  pushHistory();
+  picks = [];
+  for (const { kind, it } of JSON.parse(JSON.stringify(clip))) {
+    it.id = S.nextId++;
+    if (toLevel && (kind === "label" || it.category !== "site")) it.level = viewLevel;
+    if (kind === "area") {
+      it.points = it.points.map(p => [round4(p[0] + off), p[1]]);
+      if (!toLevel) it.name += " (copy)";
+      S.areas.push(it);
+    } else { it.x = round4(it.x + off); S.labels.push(it); }
+    picks.push({ kind, id: it.id });
+  }
+  sel = picks[0];
+  commit();
+  status(`Pasted ${clip.length} item(s)${toLevel ? ` onto ${viewLevel}` : ""}.`, "ok");
+}
+
+// ---------------------------------------------------------------- area library
+function renderLib() {
+  const inUse = k => S.areas.filter(a => a.category === k).length;
+  let h = `<tr><th>Code</th><th>Label</th><th title="Counts toward building area">Counts</th><th>Factor</th><th>Fill</th><th>In use</th><th></th></tr>`;
+  CATS.forEach((c, i) => {
+    const fixed = FIXED_CATS.includes(c.key), noFill = c.key === "line" || c.key === "site";
+    h += `<tr data-i="${i}"><td><input type="text" data-f="code" value="${esc(c.code || "")}" style="width:70px"></td>` +
+      `<td><input type="text" data-f="label" value="${esc(c.label)}"></td>` +
+      `<td><input type="checkbox" data-f="inc"${c.inc ? " checked" : ""}${noFill ? " disabled" : ""}></td>` +
+      `<td><input type="number" data-f="factor" min="0" step="0.05" value="${c.factor ?? 1}"${noFill ? " disabled" : ""}></td>` +
+      `<td>${noFill ? "—" : `<input type="color" data-f="fill" value="${/^#[0-9a-f]{6}$/i.test(c.fill) ? c.fill : "#f3f4f6"}">`}</td>` +
+      `<td class="n">${inUse(c.key) || ""}</td>` +
+      `<td>${fixed ? "" : `<button data-del="${i}" title="${inUse(c.key) ? "In use: change those areas first" : "Delete"}"${inUse(c.key) ? " disabled" : ""}>✕</button>`}</td></tr>`;
+  });
+  $("libTable").innerHTML = h;
+}
+$("bLib").onclick = () => { renderLib(); $("lib").hidden = false; };
+$("libClose").onclick = () => { $("lib").hidden = true; cmd.focus(); };
+$("libTable").addEventListener("change", e => {
+  const f = e.target.dataset.f, tr = e.target.closest("tr[data-i]");
+  if (!f || !tr) return;
+  pushHistory();
+  const c = CATS[+tr.dataset.i];
+  c[f] = f === "inc" ? e.target.checked : f === "factor" ? Math.max(0, parseFloat(e.target.value) || 0) : e.target.value;
+  setCats(CATS.slice()); commit();
+});
+$("libTable").addEventListener("click", e => {
+  const i = e.target.dataset.del;
+  if (i === undefined) return;
+  pushHistory(); CATS.splice(+i, 1); setCats(CATS.slice()); commit(); renderLib();
+});
+$("libAdd").onclick = () => {
+  pushHistory();
+  CATS.splice(CATS.findIndex(c => c.key === "line"), 0, { key: "c" + Date.now().toString(36), code: "NEW", label: "New category", inc: true, factor: 1, fill: "#e0f2fe" });
+  setCats(CATS.slice()); commit(); renderLib();
+};
+$("libSaveDef").onclick = () => {
+  try { localStorage.setItem(CATS_KEY, JSON.stringify(CATS)); status("Library saved as the default for new sketches.", "ok"); }
+  catch (e) { status("Couldn't save the default: this browser has storage turned off.", "bad"); }
+};
+$("libReset").onclick = () => {
+  if (!confirm("Replace this sketch's library with the built-in one? Categories in use are kept.")) return;
+  pushHistory(); setCats(JSON.parse(JSON.stringify(BUILTIN_CATS))); commit(); renderLib();
+};
+
+// ---------------------------------------------------------------- room labels
+const LABEL_PRESETS = ["Office", "Reception", "Lobby", "Boardroom", "Lunchroom", "Washroom", "Storage", "Mechanical", "Electrical",
+  "Shop", "Warehouse", "Loading dock", "Overhead door", "Showroom", "Retail", "Mezzanine", "Stairs", "Kitchen", "Living room",
+  "Dining room", "Bedroom", "Bathroom", "Laundry", "Utility", "Furnace room", "Entry", "Hall", "Closet", "Garage", "Deck",
+  "Patio", "Porch", "Parking", "Driveway", "Shed"];
+const LABELS_KEY = "jks-sketch-labels-v1";
+function recentLabels() { try { return JSON.parse(localStorage.getItem(LABELS_KEY)) || []; } catch (e) { return []; } }
+function rememberLabel(t) {
+  const list = [t, ...recentLabels().filter(x => x !== t)].slice(0, 30);
+  try { localStorage.setItem(LABELS_KEY, JSON.stringify(list)); } catch (e) { /* recents are a convenience */ }
+  fillLabelList();
+}
+function fillLabelList() {
+  $("labelList").innerHTML = [...new Set([...recentLabels(), ...LABEL_PRESETS])].map(t => `<option value="${esc(t)}">`).join("");
+}
+
+// ---------------------------------------------------------------- boot
+S = emptySketch();
+try {
+  const saved = localStorage.getItem(AUTOSAVE_KEY);
+  if (saved) { const d = JSON.parse(saved); if (d.format === "jks-sketch") S = Object.assign(emptySketch(), d); }
+} catch (e) { /* no autosave available */ }
+setCats(S.cats || defaultCats());
+fillLabelList();
+syncInfoFields(); renderPanel();
+requestAnimationFrame(() => { S.areas.length ? fit() : render(); cmd.focus(); });
+status(S.areas.length ? "Restored the last session's sketch (autosave)." : "Click a corner on the canvas, then type walls — e.g. R40 D28 L40 C. F1 for help.");
+</script>
+</body>
+</html>
