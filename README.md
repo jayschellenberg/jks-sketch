@@ -93,6 +93,13 @@ Up is north on the page. Several commands can go on one line: `R40 D28 L40 C`.
 diagonal, the status bar says so. A dimension was mistyped, or misread on the
 field sketch. Typing all four walls of a rectangle closes it exactly.
 
+**Adding onto a building (a covered area, an addition).** Set *Next area*
+(e.g. *Canopy / covered*), then with *Draw* click the building's corner where
+the new part starts: the click snaps onto the corner and the cursor goes to the
+command box. Type its walls (`12` ↓ Enter, `40` → Enter, `12` ↑ Enter) and
+press **A** to close. The wall along the building is closed for you, along the
+building's own walls if the shape starts and ends on it.
+
 **Attached areas (`CW`).** Start the addition on the building (click a corner,
 or `mR10` along a wall), type its own walls until you are back on the
 building, then `CW`. It follows the walls already drawn back to the start, even
@@ -122,8 +129,11 @@ walls (for every selected area). With
 *Select*, clicking a dimension hides it from the plan; on screen it stays faint
 and struck through so it can be clicked back.
 
-**Rotate and copy.** *Edit ▸ Rotate…* turns the selection, or the whole sketch (and its
-underlay) when nothing is selected, by any angle. Shift+click and fence-select
+**Rotate and copy.** `[` and `]` turn the selection 15° counter-clockwise /
+clockwise; with Shift, 5°. The same steps are buttons at the top of *Selected*,
+and *Edit ▸ Rotate…* takes any angle. With nothing selected they turn the whole
+page, with its underlay and its north arrow. A selected label turns its text;
+a whole-page turn keeps labels level. Shift+click and fence-select
 pick several items; drag, arrows, Delete, Ctrl+C and Rotate act on them all.
 
 **Doors and windows.** Choose a kind (door, double door, window, truck dock
@@ -145,7 +155,8 @@ older sketches are grade-level doors.
 
 **Year built and ceiling height.** Select an area (a section) to note its year
 built and its ceiling height: one height, or several separated by commas
-(`16, 24'6`). Tick *View ▸ details* to show them on the plan. They also
+(`16, 24'6`). They show on the plan under the area's name and size, one line
+each ("Built 1985", "Ceiling 16' / 24.5'"); untick *View ▸ details* to hide them. They also
 show in the area calculations, in a *Built / ceiling* column of the printed
 table (only when some section has them), and in `areas.json` (`year_built`,
 `ceiling_heights`). Ceiling heights convert with the drawing's units.
@@ -167,8 +178,21 @@ page's corner north arrow. Select one to rotate it (⟲ ⟳ 90°, or any angle) 
 it. They copy, rotate with the sketch and sit on the level being shown, like
 labels.
 
-**Room labels.** Type a room name in *Label text* (it offers common ones and
-the ones you've used), then each click of the Label tool places it.
+**Labels (free text).** The *Label* tool places text anywhere: type it in
+*Label text* in the panel first (it offers common room names and the ones
+you've used) and each click places it, or leave that empty and type when asked.
+Double-click a label to change its text; under *Selected* set its size, bold
+and angle (or turn it with `[` `]`).
+
+**North.** The page's north arrow (top right, on screen and on every page)
+points where *View ▸ North points* says, in degrees counter-clockwise from up,
+and turns with the drawing when you rotate the whole page. A *North arrow*
+symbol placed on a page replaces it there and turns like any symbol.
+
+**Moving doors, windows and symbols.** With *Select*, drag a door or window:
+it slides along its wall, or onto another wall, centre snapped to the grid.
+Drag a symbol anywhere. The *Door/Window* and *Symbol* tools do the same when
+you click on one that's already placed (clicking elsewhere places a new one).
 
 ## Files it writes
 
@@ -267,6 +291,9 @@ chosen *paper* and orientation less a 0.4" margin, or *Report figure*
   their true page size, their text is at least the minimum.
 - *Print* (and Save as PDF) makes one sheet per page. SVG, PNG and JPG are of
   the page being shown.
+- *Export ▸ Copy page to clipboard* (Ctrl+Shift+C) copies the page as a
+  picture to paste into Word, Outlook or an email. Word shrinks a pasted
+  picture to fit; use *Report figure* paper so its text stays full size.
 
 ## Limits, on purpose
 
