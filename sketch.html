@@ -7,8 +7,8 @@
 <!--
   JKS Sketch — re-enter hand-drawn field sketches as clean, dimensioned plans.
   One self-contained file: no server, no install, no network. Open it in Edge
-  or Chrome. See tools/sketch/README.md for the command language and for how
-  the outputs are filed into a job folder.
+  or Chrome. See README.md beside this file for the command language and for
+  how the outputs are filed into a job folder.
 -->
 <style>
   :root {
@@ -29,7 +29,27 @@
   }
   header .grp { display: flex; gap: 4px; align-items: center; }
   header .grp + .grp { border-left: 1px solid var(--line); padding-left: 10px; }
-  header strong { margin-right: 4px; }
+  header strong { margin-right: 4px; white-space: nowrap; }
+  header .ver { font-weight: normal; color: var(--muted); font-size: 11px; }
+  /* Drop-down menus: a <details> whose panel floats under its button. */
+  details.menu { position: relative; }
+  details.menu > summary {
+    list-style: none; cursor: pointer; background: #fff; border: 1px solid var(--line); border-radius: 4px;
+    padding: 3px 8px; user-select: none; white-space: nowrap;
+  }
+  details.menu > summary::-webkit-details-marker { display: none; }
+  details.menu > summary::after { content: " ▾"; color: var(--muted); font-size: 10px; }
+  details.menu > summary:hover, details.menu[open] > summary { border-color: var(--accent); }
+  details.menu .pop {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 190px;
+    display: flex; flex-direction: column; align-items: stretch; gap: 5px;
+    background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  }
+  details.menu .pop.wide { min-width: 280px; }
+  details.menu .pop > button { text-align: left; }
+  details.menu .prow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  details.menu .phead { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
   button, select, input, textarea { font: inherit; color: inherit; }
   button {
     background: #fff; border: 1px solid var(--line); border-radius: 4px;
@@ -126,11 +146,13 @@
 </head>
 <body>
 <header>
-  <div class="grp"><strong>JKS Sketch</strong>
-    <button id="bNew" title="Start a new sketch">New</button>
-    <button id="bOpen" title="Open a .sketch.json file">Open</button>
+  <div class="grp"><strong title="JKS Sketch version">JKS Sketch <span id="appVer" class="ver"></span></strong>
+    <details class="menu"><summary>File</summary><div class="pop">
+      <button id="bNew" title="Start a new sketch">New</button>
+      <button id="bOpen" title="Open a .sketch.json file">Open…</button>
+      <button id="bRecover" title="Reopen one of the last sketches this browser kept">Recover…</button>
+    </div></details>
     <button id="bSave" title="Save the editable .sketch.json">Save</button>
-    <button id="bRecover" title="Reopen one of the last sketches this browser kept">Recover…</button>
   </div>
   <div class="grp">
     <button id="tDraw" class="on" title="Draw: click sets the start point, typed vectors draw the walls">Draw</button>
@@ -144,52 +166,64 @@
   <div class="grp">
     <button id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
     <button id="bRedo" title="Redo (Ctrl+Y)">Redo</button>
+    <details class="menu"><summary>Edit</summary><div class="pop">
+      <button id="bSelAll" title="Ctrl+A">Select all shown</button>
+      <button id="bCopy" title="Ctrl+C">Copy</button>
+      <button id="bPaste" title="Ctrl+V. On another page or level the copy lands in place">Paste</button>
+      <button id="bDelSel" title="Delete">Delete selection</button>
+      <button id="bRotate" title="Rotate the selection, or the whole sketch when nothing is selected, by any angle">Rotate…</button>
+    </div></details>
     <button id="bFit" title="Zoom to fit">Fit</button>
-    <label title="Re-fit the view after each wall you confirm with Enter, so the whole drawing stays in view"><input id="autoFit" type="checkbox" checked> auto-fit</label>
-    <button id="bRotate" title="Rotate the selection, or the whole sketch when nothing is selected, by any angle">Rotate…</button>
+    <label title="Re-fit the view after each wall you confirm with Enter, so the whole drawing stays in view"><input id="autoFit" type="checkbox" checked> auto</label>
   </div>
-  <div class="grp">Page:
+  <div class="grp">Page
     <select id="pageSel" title="The page being shown and drawn on. Print makes one sheet per page"></select>
-    <button id="bPageAdd" title="Add a page">+</button>
-    <button id="bPageRen" title="Rename this page">Rename</button>
-    <button id="bPageDel" title="Delete this page and what's on it">✕</button>
-  </div>
-  <div class="grp">Show:
+    <details class="menu"><summary title="Add, rename or delete pages">⋯</summary><div class="pop">
+      <button id="bPageAdd" title="Add a page">Add page…</button>
+      <button id="bPageRen" title="Rename this page">Rename page…</button>
+      <button id="bPageDel" title="Delete this page and what's on it">Delete page</button>
+    </div></details>
+    Show
     <select id="viewLevel" title="Show one level only: the others are hidden on screen and left out of the export"><option value="">All levels</option></select>
   </div>
-  <div class="grp">Underlay:
-    <button id="bImg" title="Load a photo or scan of the hand sketch to trace over">Image…</button>
-    <button id="tCalib" title="Click two points on the image a known distance apart">Calibrate</button>
-    <button id="tMoveU" title="Drag the image into place">Move</button>
-    <input id="uOpacity" type="range" min="0" max="100" value="40" title="Image opacity" style="width:70px">
-    <input id="uRot" type="number" step="0.5" value="0" title="Image rotation (degrees)" style="width:58px">°
-    <button id="bClearU" title="Remove the underlay image">✕</button>
+  <div class="grp">
+    <details class="menu"><summary>View</summary><div class="pop">
+      <div class="prow"><span>Units</span><select id="units" title="Units"><option value="ft">feet</option><option value="m">metres</option></select></div>
+      <div class="prow"><span>Dimensions</span><span><select id="dimFmt" title="Dimension format"><option value="dec">40.5'</option><option value="ftin">40'6"</option></select>
+        <select id="dimDec" title="Decimal places on dimensions"><option value="0">0</option><option value="1" selected>0.0</option><option value="2">0.00</option><option value="3">0.000</option></select></span></div>
+      <label title="Show dimensions. With Select, click one to hide or show it"><input id="showDims" type="checkbox" checked> show dimensions</label>
+      <div class="phead">Area labels show</div>
+      <label title="Area code from the library (GLA1, GAR…)"><input id="shCode" type="checkbox"> code</label>
+      <label><input id="shName" type="checkbox" checked> name</label>
+      <label><input id="shArea" type="checkbox" checked> size</label>
+      <label title="Year built and ceiling height, where entered"><input id="shInfo" type="checkbox"> details (year built, ceiling)</label>
+      <button id="bLib" title="Area library: codes, labels, counts toward building area, default factors, fills">Area library…</button>
+    </div></details>
+    <details class="menu"><summary>Underlay</summary><div class="pop">
+      <button id="bImg" title="Load a photo or scan of the hand sketch to trace over">Load image…</button>
+      <button id="tCalib" title="Click two points on the image a known distance apart">Calibrate</button>
+      <button id="tMoveU" title="Drag the image into place">Move</button>
+      <div class="prow"><span>Opacity</span><input id="uOpacity" type="range" min="0" max="100" value="40" title="Image opacity" style="width:110px"></div>
+      <div class="prow"><span>Rotation °</span><input id="uRot" type="number" step="0.5" value="0" title="Image rotation (degrees)" style="width:70px"></div>
+      <button id="bClearU" title="Remove the underlay image">Remove image</button>
+    </div></details>
   </div>
   <div class="grp">
-    <select id="units" title="Units"><option value="ft">feet</option><option value="m">metres</option></select>
-    <select id="dimFmt" title="Dimension format"><option value="dec">40.5'</option><option value="ftin">40'6"</option></select>
-    <select id="dimDec" title="Decimal places on dimensions"><option value="0">0</option><option value="1" selected>0.0</option><option value="2">0.00</option><option value="3">0.000</option></select>
-    <label title="Show dimensions. With Select, click one to hide or show it"><input id="showDims" type="checkbox" checked> dims</label>
-  </div>
-  <div class="grp">Label:
-    <label title="Area code from the library (GLA1, GAR…)"><input id="shCode" type="checkbox"> code</label>
-    <label><input id="shName" type="checkbox" checked> name</label>
-    <label><input id="shArea" type="checkbox" checked> size</label>
-    <label title="Year built and ceiling height, where entered"><input id="shInfo" type="checkbox"> details</label>
-    <button id="bLib" title="Area library: codes, labels, counts toward building area, default factors, fills">Library…</button>
-  </div>
-  <div class="grp">Export:
-    <button id="bSvg">SVG</button>
-    <button id="bPng" title="This page as a PNG at the DPI chosen">PNG</button>
-    <button id="bJpg" title="This page as a JPG at the DPI chosen">JPG</button>
-    <select id="exDpi" title="Image resolution for PNG and JPG"><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300" selected>300 dpi</option></select>
-    <button id="bAreas" title="Areas for the job record">areas.json</button>
-    <button id="bPrint">Print</button>
-    <label title="Print the area table under the drawing"><input id="exTable" type="checkbox" checked> table</label>
-    <label title="Print scale. Blank = fit the page"><span id="scaleLbl">1" =</span> <input id="exScale" type="number" min="0" step="any" placeholder="fit" style="width:52px"><span id="scaleUnit">'</span></label>
-    <select id="exPaper" title="Page size for Print, PNG and JPG"><option value="letter">Letter</option><option value="legal">Legal</option><option value="11in 17in">Tabloid</option><option value="A4">A4</option><option value="A3">A3</option><option value="fig" title="6.5 × 9 in, no margin: drops into a letter-size report at full size">Report figure</option></select>
-    <label title="Smallest text on the finished page, in points">min <input id="exMinPt" type="number" min="4" max="36" step="0.5" value="10" style="width:46px"> pt</label>
-    <select id="exOrient" title="Orientation for Print"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
+    <details class="menu"><summary>Export</summary><div class="pop wide">
+      <div class="phead">This page as</div>
+      <span class="btns" style="margin:0"><button id="bSvg">SVG</button>
+        <button id="bPng" title="This page as a PNG at the DPI chosen">PNG</button>
+        <button id="bJpg" title="This page as a JPG at the DPI chosen">JPG</button></span>
+      <button id="bAreas" title="Areas for the job record">areas.json (all pages)</button>
+      <div class="phead">Page setup (Print, PDF, PNG, JPG)</div>
+      <div class="prow"><span>Paper</span><span><select id="exPaper" title="Page size for Print, PNG and JPG"><option value="letter">Letter</option><option value="legal">Legal</option><option value="11in 17in">Tabloid</option><option value="A4">A4</option><option value="A3">A3</option><option value="fig" title="6.5 × 9 in, no margin: drops into a letter-size report at full size">Report figure</option></select>
+        <select id="exOrient" title="Orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></span></div>
+      <div class="prow"><span>Scale</span><label title="Print scale. Blank = fit the page"><span id="scaleLbl">1" =</span> <input id="exScale" type="number" min="0" step="any" placeholder="fit" style="width:60px"><span id="scaleUnit">'</span></label></div>
+      <div class="prow"><span>Smallest text</span><label title="Smallest text on the finished page, in points"><input id="exMinPt" type="number" min="4" max="36" step="0.5" value="10" style="width:54px"> pt</label></div>
+      <div class="prow"><span>Image dpi</span><select id="exDpi" title="Image resolution for PNG and JPG"><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300" selected>300 dpi</option></select></div>
+      <label title="Print the area table under the drawing"><input id="exTable" type="checkbox" checked> area table under the plan</label>
+    </div></details>
+    <button id="bPrint" title="Print every page, or Save as PDF">Print</button>
   </div>
   <div class="grp"><button id="bHelp">Help (F1)</button></div>
 </header>
@@ -285,7 +319,7 @@
 </footer>
 
 <div id="help" hidden>
-  <h2 style="margin-top:0">JKS Sketch — command language</h2>
+  <h2 style="margin-top:0">JKS Sketch <span id="helpVer" style="font-weight:normal;color:#6b7280;font-size:15px"></span> — command language</h2>
   <p>Click the canvas to set the starting corner (it snaps to existing corners, then to the grid), then type
   walls into the command line and press <b>Enter</b>. Up is north on the page. Several commands can be typed on one line.</p>
   <table>
@@ -341,7 +375,7 @@
   <p><b>Recover…</b> reopens one of the last dozen sketches this browser worked on, as they were at their last change. It's a safety
   net; <b>Save</b> is the record.</p>
   <h3>Pages</h3>
-  <p><b>Page</b> in the toolbar: <b>+</b> adds a page (site plan, each building, each floor), <b>Rename</b>, <b>✕</b> deletes one.
+  <p><b>Page</b> in the toolbar picks the page; its <b>⋯</b> menu adds a page (site plan, each building, each floor), renames or deletes one.
   Each page is its own drawing; totals and <code>areas.json</code> cover every page. Each sheet is headed with the title and page
   name, the <b>Site name</b> (or the address when there is none) and "Page 2 of 3". Copy on one page and paste on another to
   start from the same outline, in place.</p>
@@ -354,7 +388,8 @@
   (<code>16, 24'6</code>). Tick <b>details</b> under Label to show them on the plan; they also appear in the calculations, the printed
   table and <code>areas.json</code>.</p>
   <h3>Levels, library, labels</h3>
-  <p><b>Show</b> picks one level: the others are hidden, new areas go on that level, and SVG/PNG/Print export just that level.
+  <p>Settings live in the toolbar's menus: <b>File</b>, <b>Edit</b>, <b>View</b> (units, dimensions, label contents, area library),
+  <b>Underlay</b> and <b>Export</b> (formats and page setup). <b>Show</b> picks one level: the others are hidden, new areas go on that level, and SVG/PNG/Print export just that level.
   <b>Library…</b> edits the area categories (code, label, counts toward building area, default factor, fill). <b>Label</b> chooses
   what each area's label shows. <b>Interior / fence line</b> is a category for lines that aren't measured; an open line (<code>E</code>)
   becomes one. <b>Label text</b> in the panel lets the Label tool place a room name with one click. <b>Rotate…</b> turns the selection,
@@ -480,6 +515,9 @@ const isSiteImp = a => !!(CAT[a.category] && CAT[a.category].siteImp);
 const footOf = a => a.category !== "site" && !isSiteImp(a) && (typeof a.foot === "boolean" ? a.foot : !!(CAT[a.category] || {}).foot);
 const FT_TO_M = 0.3048;
 const EPS = 1e-6;
+// Shown in the toolbar, in Help, at the foot of every exported page and in
+// saved files, so a shared copy can be told apart. Bump with each release.
+const APP_VERSION = "1.0", APP_DATE = "2026-10-25";
 const AUTOSAVE_KEY = "jks-sketch-autosave-v1";
 // Besides the current sketch, the last few sketches are kept in the browser so
 // starting a new one (or a mistake) can't lose unsaved work: Recover lists them.
@@ -2009,7 +2047,7 @@ function exportSvg() {
   const titleH = Math.max(leftH, rightH) + m * 0.9;
   const rowH = 1.7 * m, tableH = rows.length ? rowH * (rows.length + 1) + m * 1.2 : 0;
   // Page notes along the foot of the page ("not to scale", "for illustration only").
-  const notes = notesOf(), footH = notes.length ? notes.length * m * 1.35 + m * 0.8 : 0;
+  const notes = notesOf(), footH = Math.max(notes.length * m * 1.35 + m * 0.8, m * 1.6);   // always room for the version line
   // The drawing: fitted into what's left of the page, or at the set scale.
   let zoom, Wout = W, Hout = Hpage, drawH;
   if (sc) {
@@ -2058,6 +2096,7 @@ function exportSvg() {
     }
   }
   notes.forEach((t, i) => s += `<text x="${pad}" y="${(Hout - footH + m * 1.2 + i * m * 1.35).toFixed(1)}" font-size="${m}" ${F} fill="#374151">${esc(t)}</text>`);
+  s += `<text x="${Wout - pad}" y="${(Hout - m * 0.5).toFixed(1)}" font-size="${m}" text-anchor="end" ${F} fill="#9ca3af">JKS Sketch ${APP_VERSION}</text>`;
   return s + "</svg>";
 }
 function northArrow(x, y, k = 1) {
@@ -2100,7 +2139,7 @@ function areasJson() {
   const len = v => S.units === "m" ? { m: Math.round(v * 100) / 100 } : { ft: Math.round(v * 100) / 100 };
   const t = totals(), groups = groupsOf();
   return {
-    format: "jks-sketch-areas", version: 1,
+    format: "jks-sketch-areas", version: 1, generator: `JKS Sketch ${APP_VERSION} (${APP_DATE})`,
     generated: new Date().toISOString(),
     drawn_in: S.units === "m" ? "metres" : "feet",
     title: S.info.title, site_name: S.info.site || "", property: S.info.address, file_number: S.info.file,
@@ -2289,11 +2328,7 @@ document.addEventListener("keydown", e => {
   const mod = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
   if (mod && key === "c") { if (copySel()) e.preventDefault(); return; }
   if (mod && key === "v") { e.preventDefault(); return pasteClip(); }
-  if (mod && key === "a") {
-    e.preventDefault();
-    picks = visAreas().map(a => ({ kind: "area", id: a.id })).concat(visLabels().map(l => ({ kind: "label", id: l.id })), visSymbols().map(s => ({ kind: "symbol", id: s.id })), visDimlines().map(d => ({ kind: "dimline", id: d.id })));
-    sel = picks[0] || null; renderPanel(); return render();
-  }
+  if (mod && key === "a") { e.preventDefault(); return selectAllShown(); }
   if (activeVertex && (e.key === "Delete" || e.key === "Backspace")) {
     const a = S.areas.find(x => x.id === activeVertex.id);
     e.preventDefault();
@@ -2807,6 +2842,7 @@ $("units").onchange = () => {
 $("bSave").onclick = () => {
   const data = JSON.parse(snapshot());
   if (underlay) data.underlay = underlay;
+  data.saved_with = `JKS Sketch ${APP_VERSION}`;
   saveFile(baseName() + ".sketch.json", new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }),
     "JKS sketch", "application/json", ".json");
 };
@@ -2886,7 +2922,26 @@ $("bPrint").onclick = () => {
 for (const id of ["exScale", "exPaper", "exOrient", "exMinPt"]) $(id).addEventListener("change", () => {
   if (S.areas.length && exportSvg()) showExportNotes(exportNotes, `Page ${fmtNum(paperInches()[0], 2)} × ${fmtNum(paperInches()[1], 2)} in, text at least ${fmtNum(minTextPt(), 1)} pt.`);
 });
+function selectAllShown() {
+  picks = visAreas().map(a => ({ kind: "area", id: a.id })).concat(visLabels().map(l => ({ kind: "label", id: l.id })),
+    visSymbols().map(s => ({ kind: "symbol", id: s.id })), visDimlines().map(d => ({ kind: "dimline", id: d.id })));
+  sel = picks[0] || null; renderPanel(); render();
+  status(picks.length ? `${picks.length} item(s) selected.` : "Nothing on this page to select.");
+}
 function showHelp(on) { $("help").hidden = !on; if (!on) cmd.focus(); }
+
+// ---------------------------------------------------------------- toolbar menus
+// One menu open at a time; a click outside closes it, and so does a button
+// inside it (settings — boxes, lists, numbers — leave it open to adjust more).
+const menus = [...document.querySelectorAll("details.menu")];
+for (const m of menus) m.addEventListener("toggle", () => { if (m.open) for (const o of menus) if (o !== m) o.open = false; });
+document.addEventListener("click", e => {
+  for (const m of menus) if (m.open && (!m.contains(e.target) || (e.target.closest(".pop button") && m.contains(e.target)))) m.open = false;
+});
+$("bSelAll").onclick = selectAllShown;
+$("bCopy").onclick = () => { if (!copySel()) status("Select something to copy first.", "bad"); };
+$("bPaste").onclick = pasteClip;
+$("bDelSel").onclick = () => { if (pickedItems().length) deleteSel(); else status("Nothing selected.", "bad"); };
 $("bHelp").onclick = () => showHelp(true);
 $("bHelpClose").onclick = () => showHelp(false);
 window.addEventListener("resize", render);
@@ -3090,6 +3145,9 @@ try {
 setCats(S.cats || defaultCats());
 ensurePages();
 fillLabelList();
+$("appVer").textContent = APP_VERSION;
+$("appVer").parentElement.title = `JKS Sketch ${APP_VERSION}, ${APP_DATE}`;
+$("helpVer").textContent = `${APP_VERSION} (${APP_DATE})`;
 $("oKind").innerHTML = Object.entries(OPENINGS).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join("");
 for (const id of ["nStorage", "sStorage"]) $(id).innerHTML = Object.entries(STORAGE).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join("");
 $("oWidth").value = openingDefault("door"); $("oHeight").value = openingHeightDefault("door");

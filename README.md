@@ -4,10 +4,26 @@ Re-enters a hand-drawn field sketch as a clean, dimensioned plan with computed
 areas. One self-contained file, `sketch.html`: open it in Edge or Chrome
 (double-click). No install, no server, no network. Nothing leaves the machine.
 
-**Outside the spine (ruled 2026-10-24, `docs/RULINGS.md`).** No script reads its output
+**Outside the spine (ruled 2026-10-24).** No script reads its output
 and it changes nothing in the platform. Its files are filed into a job by hand,
 like a photo. Wiring `areas.json` into the manifest or the workbook is held until
 after the first delivery.
+
+## Toolbar
+
+One row on a laptop screen. Always visible: *File* menu (New, Open, Recover)
+and *Save*; the tools (Draw, Select, Label, Door/Window, Symbol, Measure,
+Photo); Undo, Redo, the *Edit* menu (select all, copy, paste, delete, rotate),
+*Fit* and *auto*; the page and level being shown; *View* (units, dimension
+format and decimals, what area labels show, the area library); *Underlay*
+(load, calibrate, move, opacity, rotation, remove); *Export* (SVG, PNG, JPG,
+areas.json, and page setup: paper, orientation, scale, smallest text, image
+dpi, area table); *Print*; Help.
+
+**Version.** The version (now 1.0, 2026-10-25) shows next to the name, in
+Help, at the foot of every exported page, in saved sketches (`saved_with`)
+and in `areas.json` (`generator`), so a shared copy can be told apart. It's
+`APP_VERSION` near the top of the script; bump it with each release.
 
 ## Workflow
 
@@ -49,7 +65,7 @@ Up is north on the page. Several commands can go on one line: `R40 D28 L40 C`.
 |---|---|
 | `R40` `L12.5` `U28` `D6` | wall right / left / up / down |
 | `R40'6` `R40'6"` `R40-6` | 40 ft 6 in (converted when drawing in metres) |
-| `R40'6-1/2"` `R40.54` | fractional inches, or decimal feet. Everything is computed in decimal feet; the plan shows `40.5'` or `40'6"` (toolbar) |
+| `R40'6-1/2"` `R40.54` | fractional inches, or decimal feet. Everything is computed in decimal feet; the plan shows `40.5'` or `40'6"` (*View* menu) |
 | `R10U5` | one diagonal wall, 10 across and 5 up (bays, clipped corners) |
 | `R40~5` `R40~-5` | curved wall: corner to corner 40, middle of the curve 5 out of the room (`~-5` bows in). On an open line + bows left |
 | `R40~r25` `C~5` | curve by radius instead of rise; the closing wall can curve too. Half-circle bay: `R12~6` |
@@ -72,7 +88,7 @@ Up is north on the page. Several commands can go on one line: `R40 D28 L40 C`.
 | Ctrl+A / Ctrl+C / Ctrl+V | select all shown / copy / paste |
 | Shift+click, drag on empty space | add to the selection / fence-select (Select tool) |
 | Wheel / right-drag | zoom / pan |
-| *auto-fit* (toolbar, on by default) | re-fit the view after each wall confirmed with Enter, so the whole drawing stays in view; untick to stay zoomed in |
+| *auto* next to *Fit* (on by default) | re-fit the view after each wall confirmed with Enter, so the whole drawing stays in view; untick to stay zoomed in |
 
 **Closure check.** If every typed wall is square and the closing wall comes out
 diagonal, the status bar says so. A dimension was mistyped, or misread on the
@@ -94,10 +110,10 @@ say which, and the table gives that level's area and the building's total). To
 start an upper floor from the main floor: select the main floor, Ctrl+C, show
 the upper level, Ctrl+V. The copy lands in place on that level.
 
-**Area library.** *Library…* edits the categories: code (GLA1, GAR…), label,
+**Area library.** *View ▸ Area library…* edits the categories: code (GLA1, GAR…), label,
 counts toward building area, default factor, fill. Changes belong to this
 sketch and are saved with it; *Save as my default* makes new sketches start
-with the same list. *Label* in the toolbar chooses what each area's label
+with the same list. *View ▸ Area labels show* chooses what each area's label
 shows: code, name, size. *Interior / fence line* is for lines that are drawn
 but never measured; an open line (`E`) becomes one unless it's a lot line.
 
@@ -105,7 +121,7 @@ but never measured; an open line (`E`) becomes one unless it's a lot line.
 *Select*, clicking a dimension hides it from the plan; on screen it stays faint
 and struck through so it can be clicked back.
 
-**Rotate and copy.** *Rotate…* turns the selection, or the whole sketch (and its
+**Rotate and copy.** *Edit ▸ Rotate…* turns the selection, or the whole sketch (and its
 underlay) when nothing is selected, by any angle. Shift+click and fence-select
 pick several items; drag, arrows, Delete, Ctrl+C and Rotate act on them all.
 
@@ -128,7 +144,7 @@ older sketches are grade-level doors.
 
 **Year built and ceiling height.** Select an area (a section) to note its year
 built and its ceiling height: one height, or several separated by commas
-(`16, 24'6`). Tick *details* under *Label* to show them on the plan. They also
+(`16, 24'6`). Tick *View ▸ details* to show them on the plan. They also
 show in the area calculations, in a *Built / ceiling* column of the printed
 table (only when some section has them), and in `areas.json` (`year_built`,
 `ceiling_heights`). Ceiling heights convert with the drawing's units.
@@ -204,12 +220,13 @@ under *Selected*), print at the minimum text size, and are listed with their
 compass facing in `areas.json` as `photos`.
 
 **Recover.** Besides the current sketch, the browser keeps the last dozen
-sketches you worked on. *Recover…* lists them (file, site, areas, last change)
+sketches you worked on. *File ▸ Recover…* lists them (file, site, areas, last change)
 and reopens one. It's a safety net for a sketch replaced before it was saved;
 *Save* is the record.
 
-**Pages.** *Page* in the toolbar: *+* adds a page (site plan, each building,
-each floor), *Rename*, *✕* deletes one (Undo brings it back). Each page is its
+**Pages.** *Page* in the toolbar picks the page; its *⋯* menu adds a page (site
+plan, each building, each floor), renames one, or deletes one (Undo brings it
+back). Each page is its
 own drawing; totals, the area calculations and `areas.json` cover every page,
 and on a page's table the totals say "(all pages)". Each sheet is headed with
 the title and page name, the site name or address, and "Page 2 of 3". Copy on
