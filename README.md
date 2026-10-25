@@ -76,14 +76,13 @@ Up is north on the page. Several commands can go on one line: `R40 D28 L40 C`.
 | `mR10` | move the start point 10 right without drawing (an addition that starts partway along a wall) |
 | `U=` `L=` | run up (left…) until level with the start, so the close comes out square (one dimension missing from the field sketch) |
 | `U*` `R*` | run up (right…) until meeting an existing wall, or one of this area's own |
-| `C` | close back to the start |
+| `C`, or **A** on an empty line | close back to the start. **A** (Apex's auto-close) closes along the building's walls (`CW`) instead when a straight close would cut a diagonal across a building the shape started and ended on |
 | `CW` | close along existing walls: follow the walls already drawn back to the start |
 | `E` | end as an open line (fence, lot line) |
-| Enter on empty line | close |
 | Backspace on empty line | remove the last wall |
 | Esc | cancel the area being drawn / clear selection |
 | Ctrl+Z / Ctrl+Y | undo / redo |
-| `25.5` → Enter | number-pad drawing: the arrow gives the length a direction (`R25.5`, previewed; another arrow turns it), Enter draws it |
+| `100` → Enter | number-pad drawing: click the start, type `100`, press → and the wall appears with its `100'` label (another arrow turns it); Enter confirms it. Then the next wall. Enter on an empty line does nothing, so a double Enter can't close the shape |
 | Arrows (empty line) | nudge the selection one grid step; Shift ×10 |
 | Ctrl+A / Ctrl+C / Ctrl+V | select all shown / copy / paste |
 | Shift+click, drag on empty space | add to the selection / fence-select (Select tool) |
@@ -117,7 +116,9 @@ with the same list. *View ▸ Area labels show* chooses what each area's label
 shows: code, name, size. *Interior / fence line* is for lines that are drawn
 but never measured; an open line (`E`) becomes one unless it's a lot line.
 
-**Dimensions.** Decimal places are set next to the format (0 to 0.000). With
+**Dimensions.** Decimal places are set next to the format (0 to 0.000).
+*Dims side* under *Selected* puts an area's dimensions inside or outside its
+walls (for every selected area). With
 *Select*, clicking a dimension hides it from the plan; on screen it stays faint
 and struck through so it can be clicked back.
 
@@ -149,11 +150,20 @@ show in the area calculations, in a *Built / ceiling* column of the printed
 table (only when some section has them), and in `areas.json` (`year_built`,
 `ceiling_heights`). Ceiling heights convert with the drawing's units.
 
-**Symbols.** Click a symbol in the palette (stairs, toilet, sink, tub, shower,
+**Perimeters.** The *Areas* summary has a *Perim* column: each area's own
+perimeter, and on each "Combine as" total and each building level the
+*outside* perimeter, where a wall shared by two of its areas doesn't count.
+`areas.json` gives `combined[].outer_perimeter` and per building
+`outer_perimeter_by_level`.
+
+**Symbols.** The *Doors, windows, symbols* section of the panel starts folded;
+the Door/Window and Symbol tools open it. Click a symbol in the palette (stairs, toilet, sink, tub, shower,
 range, refrigerator, washer/dryer, water heater, furnace, electrical panel,
-fireplace, column, car, dock leveller, ramp, tree, arrow), then click the plan
+fireplace, column, car, dock leveller, ramp, tree, arrow, north arrow), then click the plan
 to place it; keep clicking for more. Symbols are drawn at real size, so they
-scale with the plan. Select one to rotate it (⟲ ⟳ 90°, or any angle) or resize
+scale with the plan, except the *North arrow*, which stays a fixed size and,
+placed on a page (turned to true north if the plan isn't), replaces that
+page's corner north arrow. Select one to rotate it (⟲ ⟳ 90°, or any angle) or resize
 it. They copy, rotate with the sketch and sit on the level being shown, like
 labels.
 

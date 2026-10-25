@@ -125,6 +125,10 @@
   #lib td input[data-f=label] { min-width: 170px; }
   #lib td input[type=number] { width: 64px; }
   #fence { fill: rgba(37,99,235,.08); stroke: #2563eb; stroke-dasharray: 4 3; }
+  #dwsBox > summary { list-style: none; cursor: pointer; }
+  #dwsBox > summary::-webkit-details-marker { display: none; }
+  #dwsBox > summary h3::before { content: "▸ "; }
+  #dwsBox[open] > summary h3::before { content: "▾ "; }
   #symGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; }
   #symGrid button { padding: 2px; height: 42px; display: flex; align-items: center; justify-content: center; }
   #symGrid svg { width: 34px; height: 34px; }
@@ -250,11 +254,12 @@
   <div class="row"><label for="snap">Grid snap</label><input id="snap" type="number" step="0.1" min="0" value="1"></div>
   <div class="row"><label for="nLabel">Label text</label><input id="nLabel" type="text" list="labelList" placeholder="for the Label tool, e.g. Office"></div>
 
-  <h3>Doors, windows, symbols</h3>
+  <details id="dwsBox"><summary><h3>Doors, windows, symbols</h3></summary>
   <div class="row"><label for="oKind">Opening</label><span style="display:flex;gap:4px"><select id="oKind" style="flex:1"></select>
     <input id="oWidth" type="number" step="0.5" min="0.1" title="Width" style="width:56px">×<input id="oHeight" type="number" step="0.5" min="0" title="Height (optional)" placeholder="ht" style="width:56px"></span></div>
-  <div class="hint">Door/Window tool: click a wall to place it.</div>
+  <div class="hint">Door/Window tool: click a wall to place it. Symbol: pick one below, then click the plan.</div>
   <div id="symGrid"></div>
+  </details>
 
   <h3>Selected</h3>
   <div id="selNone" class="hint">Nothing selected. Use the Select tool, or click a row in the table below.</div>
@@ -272,6 +277,7 @@
     <div class="row"><label for="sCeil">Ceiling ht</label><input id="sCeil" type="text" placeholder="e.g. 18 or 16, 24'6" title="One height, or several separated by commas"></div>
     <div class="row"><label for="sStorage">Storage</label><select id="sStorage" title="Semi-cold and cold storage are totalled apart from the main (heated) GBA"></select></div>
     <div class="row"><label for="sDims">Show dims</label><span><input id="sDims" type="checkbox"> <span class="hint">off for a shared wall</span></span></div>
+    <div class="row"><label>Dims side</label><span><button id="sDimsSide" title="Put this area's dimensions on the other side of its walls (applies to every selected area)">Inside → outside</button></span></div>
     <div class="row"><label>Size</label><span id="sSize"></span></div>
     <label for="sVec" class="hint">Vectors from the first corner — edit a dimension and Apply:</label>
     <textarea id="sVec" spellcheck="false"></textarea>
@@ -337,10 +343,9 @@
     <tr><td><code>20@135</code></td><td>Wall of length 20 at 135° (0° = right, 90° = up, counter-clockwise).</td></tr>
     <tr><td><code>N45-30E120.5</code></td><td>Survey bearing N 45°30′ E, 120.5 long (for lot lines). <code>S12E</code>, <code>N89-59-30W</code> etc.</td></tr>
     <tr><td><code>mR10</code> <code>mU4</code> <code>m3@45</code></td><td>Move the start point without drawing — e.g. a garage that starts 10 ft along the house wall.</td></tr>
-    <tr><td><code>C</code></td><td>Close back to the start. The status bar reports the closing wall so a sketch that doesn't close is caught.</td></tr>
+    <tr><td><code>C</code> or <b>A</b></td><td>Close back to the start. <b>A</b> (on an empty line) is auto-close: when a straight close would cut a diagonal across the building the shape started and ended on, it closes along that building's walls instead. The status bar reports the closing wall so a sketch that doesn't close is caught.</td></tr>
     <tr><td><code>E</code></td><td>End as an open line (a fence, a lot line, a wall that is not a room).</td></tr>
-    <tr><td><code>25.5</code> <b>→</b> <b>Enter</b></td><td>Number-pad drawing: type a length, press an arrow to give it a direction (it becomes <code>R25.5</code>, shown dashed; another arrow turns it), then Enter to draw it.</td></tr>
-    <tr><td><b>Enter</b> on an empty line</td><td>Close the area (3+ corners).</td></tr>
+    <tr><td><code>100</code> <b>→</b> <b>Enter</b></td><td>Number-pad drawing: click the start, type a length, press an arrow and the wall appears with its length (another arrow turns it); Enter confirms it. Enter on an empty line does nothing, so a double Enter can't close the shape.</td></tr>
     <tr><td><b>Backspace</b> on an empty line</td><td>Remove the last wall.</td></tr>
     <tr><td><b>Esc</b></td><td>Cancel the area being drawn / clear the selection.</td></tr>
     <tr><td><b>Ctrl+Z</b> / <b>Ctrl+Y</b></td><td>Undo / redo.</td></tr>
@@ -561,6 +566,7 @@ let dimClickTimer = null;   // a single click on a dimension waits, in case it's
 let tool = "draw";
 let hover = null;           // snapped world point under the cursor
 let ghost = [];             // preview points from the half-typed command
+let ghostWalls = [];        // its corners, for the length labels
 let calib = null;           // first calibration point
 let history = [], future = [];
 const $ = id => document.getElementById(id);
@@ -1334,6 +1340,7 @@ function dimSpecs(a, T, k = 1) {
     // Dimensions sit INSIDE their room, so a wall shared by two areas gets
     // one dimension on each side instead of two on top of each other.
     if (!a.closed || !ccw) { nx = -nx; ny = -ny; }
+    if (a.dimsOut) { nx = -nx; ny = -ny; }   // the area's choice: dimensions outside its walls
     // A curved wall is dimensioned at the top of its arc: chord, then rise.
     const r = riseAt(a, i), [cx, cy] = r ? T(...arcApex(A, B, r)) : [(ax + bx) / 2, (ay + by) / 2];
     let ang = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
@@ -1628,6 +1635,10 @@ const SYMBOLS = [
   { key: "ramp", label: "Ramp", w: 4, h: 12, svg: sR(-2, -6, 4, 12) + sL(0, 5, 0, -5) + sP("M-0.8 -3.8L0 -5L0.8 -3.8") },
   { key: "tree", label: "Tree", w: 12, h: 12, svg: sC(0, 0, 6) + sC(0, 0, 0.5) },
   { key: "arrow", label: "Arrow", w: 2, h: 8, svg: sL(0, 4, 0, -4) + sP("M-1 -2.5L0 -4L1 -2.5") },
+  // Drawn at a fixed size, not to scale, like the page's own north arrow. Placing
+  // one on a page (turned to true north if the plan isn't) replaces the corner one.
+  { key: "north", label: "North arrow", w: 4, h: 9, fixed: true,
+    svg: `<path d="M0 -4.5L2 3L0 1.6L-2 3Z" fill="#111827" stroke="none"/>` + sT(0, 4.2, "N", 3).replace('fill="#374151"', 'fill="#111827" font-weight="bold"') },
 ];
 const SYM = Object.fromEntries(SYMBOLS.map(s => [s.key, s]));
 const symScale = s => (S.units === "m" ? FT_TO_M : 1) * (s.size || 1);   // world units per symbol foot
@@ -1635,7 +1646,8 @@ function symbolSvg(s, T, zoom, isSel, minText, k = 1) {
   if (s.type === "photo") return photoSvg(s, T, isSel, k);
   const d = SYM[s.type];
   if (!d) return "";
-  const [sx, sy] = T(s.x, s.y), sc = zoom * symScale(s);
+  // Fixed-size symbols (the north arrow) scale with the text, not the plan.
+  const [sx, sy] = T(s.x, s.y), sc = d.fixed ? 3.5 * k * (s.size || 1) : zoom * symScale(s);
   // A symbol's letters (REF, W, WH…) are part of the drawing and scale with it;
   // on a page export, any that would print under the minimum text size are left off.
   const body = minText ? d.svg.replace(/<text[^>]*font-size="([\d.]+)"[^>]*>[^<]*<\/text>/g, (m, f) => f * sc >= minText ? m : "") : d.svg;
@@ -1645,13 +1657,14 @@ function symbolSvg(s, T, zoom, isSel, minText, k = 1) {
 // The symbol's own frame: is world point w within its box?
 function symHit(s, w) {
   if (s.type === "photo") return dist(w, [s.x, s.y]) < 12 / view.zoom;
-  const d = SYM[s.type], k = symScale(s), r = (s.rot || 0) * Math.PI / 180;
+  const d = SYM[s.type], r = (s.rot || 0) * Math.PI / 180;
   if (!d) return false;
+  const k = d.fixed ? 3.5 * (s.size || 1) / view.zoom : symScale(s);
   const vx = w[0] - s.x, vy = w[1] - s.y, a = vx * Math.cos(r) + vy * Math.sin(r), b = -vx * Math.sin(r) + vy * Math.cos(r);
   return Math.abs(a / k) <= d.w / 2 + 0.3 && Math.abs(b / k) <= d.h / 2 + 0.3;
 }
 function symCorners(s) {
-  const d = SYM[s.type] || { w: 1, h: 1 }, k = symScale(s), r = s.type === "photo" ? 0 : Math.hypot(d.w, d.h) / 2 * k;
+  const d = SYM[s.type] || { w: 1, h: 1 }, k = symScale(s), r = s.type === "photo" || d.fixed ? 0 : Math.hypot(d.w, d.h) / 2 * k;
   return [[s.x - r, s.y - r], [s.x + r, s.y + r]];
 }
 
@@ -1707,9 +1720,17 @@ function liveSvg(T) {
     const [px, py] = T(pen[0], pen[1]);
     out.push(`<path d="M${px - 7} ${py}H${px + 7}M${px} ${py - 7}V${py + 7}" stroke="#2563eb" stroke-width="1.5"/>`);
   }
+  // The typed-but-not-confirmed walls: drawn like real walls, with their lengths,
+  // a little lighter until Enter confirms them.
   if (ghost.length > 1) {
     const sg = ghost.map(q => T(q[0], q[1]));
-    out.push(`<polyline points="${sg.map(q => q.join(",")).join(" ")}" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="5 4"/>`);
+    out.push(`<polyline points="${sg.map(q => q.join(",")).join(" ")}" fill="none" stroke="#2563eb" stroke-width="2" stroke-opacity=".6"/>`);
+    for (let i = 1; i < ghostWalls.length; i++) {
+      const L = dist(ghostWalls[i - 1], ghostWalls[i]);
+      if (L < EPS) continue;
+      const [ax, ay] = T(...ghostWalls[i - 1]), [bx, by] = T(...ghostWalls[i]);
+      out.push(`<text x="${(ax + bx) / 2}" y="${(ay + by) / 2 - 6}" font-size="12" font-weight="bold" text-anchor="middle" fill="#2563eb" font-family="Arial">${esc(fmtLen(L))}</text>`);
+    }
   }
   if (hover && (tool === "draw" || tool === "calib" || tool === "measure")) {
     const [hx, hy] = T(hover.pt[0], hover.pt[1]);
@@ -1748,6 +1769,31 @@ function groupsOf() {
   return g;
 }
 function groupOf(a, groups) { return groups.get((a.group || "").trim()) || null; }
+// Perimeter of several areas taken together: a wall two of them share (same
+// building and level) is inside the whole, so only the outside walls count.
+function outerPerimeter(list) {
+  let sum = 0;
+  for (const a of list) {
+    const inner = innerStretches(a, list), p = a.points, n = p.length;
+    for (let i = 0; i < (a.closed ? n : n - 1); i++) {
+      const ai = arcInfo(p[i], p[(i + 1) % n], riseAt(a, i));
+      if (ai) { sum += ai.len; continue; }
+      sum += dist(p[i], p[(i + 1) % n]) * (1 - (inner[i] || []).reduce((t, [t0, t1]) => t + t1 - t0, 0));
+    }
+  }
+  return sum;
+}
+// The measured, counted areas of each building, level by level (storage included):
+// { building: { level: [areas] } }, for outside perimeters.
+function areasByBuildingLevel() {
+  const out = {};
+  for (const a of S.areas) {
+    if (!isCalc(a) || !a.included || a.category === "site" || isSiteImp(a)) continue;
+    const b = a.building || "(no building)", lv = a.level || "(no level)";
+    ((out[b] = out[b] || {})[lv] = out[b][lv] || []).push(a);
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------- side panel
 // Storage class of a section. Semi-cold and cold storage that counts toward
@@ -1813,6 +1859,7 @@ function renderPanel() {
     if (document.activeElement !== $("sLevel")) $("sLevel").value = it.level;
     if (document.activeElement !== $("sGroup")) $("sGroup").value = it.group || "";
     $("sCat").value = it.category; $("sInc").checked = it.included; $("sDims").checked = it.dims;
+    $("sDimsSide").textContent = it.dimsOut ? "Outside → inside" : "Inside → outside";
     $("sFoot").checked = footOf(it); $("sFoot").disabled = it.category === "site" || isSiteImp(it);
     if (document.activeElement !== $("sFactor")) $("sFactor").value = factorOf(it).toFixed(2);
     $("sNeg").checked = !!it.negative;
@@ -1839,27 +1886,35 @@ function renderPanel() {
   if (viewLevel && !lvls.includes(viewLevel)) lvls.push(viewLevel);
   $("viewLevel").innerHTML = `<option value="">All levels</option>` + lvls.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
   $("viewLevel").value = viewLevel;
-  let h = `<table><thead><tr><th>Area</th><th>Bldg / level</th><th class="n">${areaUnitLabel()}</th><th title="Counts toward building area">✓</th></tr></thead><tbody>`;
+  const P = v => fmtLen(v).replace(/'$/, "") + (S.units === "m" ? "" : "'");
+  let h = `<table><thead><tr><th>Area</th><th>Bldg / level</th><th class="n">${areaUnitLabel()}</th>` +
+    `<th class="n" title="Perimeter. On a combined or level total: the outside walls only (walls shared between areas don't count)">Perim</th>` +
+    `<th title="Counts toward building area">✓</th></tr></thead><tbody>`;
   for (const a of rows) {
     const isSel = isPicked("area", a.id);
     const gm = groupOf(a, groups) ? ` <span class="hint">→ ${esc(a.group.trim())}</span>` : "";
     h += `<tr data-id="${a.id}" class="${isSel ? "sel" : ""}"><td>${esc(a.name)}${gm}</td>` +
       `<td>${a.category === "site" ? "site" : esc([a.building, a.level].filter(Boolean).join(" / "))}</td>` +
-      `<td class="n">${isCalc(a) ? fmtArea(netAreaOf(a)).replace(/ .*/, "") : "—"}</td><td>${a.included && isCalc(a) && a.category !== "site" ? "✓" : ""}</td></tr>`;
+      `<td class="n">${isCalc(a) ? fmtArea(netAreaOf(a)).replace(/ .*/, "") : "—"}</td><td class="n">${P(perimeterOf(a))}</td>` +
+      `<td>${a.included && isCalc(a) && a.category !== "site" ? "✓" : ""}</td></tr>`;
   }
   for (const g of groups.values())
-    h += `<tr class="total"><td colspan="2">${esc(g.name)} <span class="hint">(${g.members.length} combined)</span></td><td class="n">${fmtArea(g.total).replace(/ .*/, "")}</td><td></td></tr>`;
-  const t = totals();
+    h += `<tr class="total"><td colspan="2">${esc(g.name)} <span class="hint">(${g.members.length} combined)</span></td><td class="n">${fmtArea(g.total).replace(/ .*/, "")}</td>` +
+      `<td class="n" title="Outside walls of the combined area">${P(outerPerimeter(g.members))}</td><td></td></tr>`;
+  const t = totals(), bl = areasByBuildingLevel();
   for (const b of t.buildings) {
-    for (const [lv, v] of Object.entries(b.by_level))
-      h += `<tr><td colspan="2" class="hint">${esc(b.building)} — ${esc(lv)}</td><td class="n">${fmtArea(v).replace(/ .*/, "")}</td><td></td></tr>`;
-    h += `<tr class="total"><td colspan="2">${esc(b.building)} building area${b.semi || b.cold ? " (heated)" : ""}</td><td class="n">${fmtArea(b.building_area).replace(/ .*/, "")}</td><td></td></tr>`;
-    if (b.semi) h += `<tr class="total"><td colspan="2">${esc(b.building)} semi-cold storage</td><td class="n">${fmtArea(b.semi).replace(/ .*/, "")}</td><td></td></tr>`;
-    if (b.cold) h += `<tr class="total"><td colspan="2">${esc(b.building)} cold storage</td><td class="n">${fmtArea(b.cold).replace(/ .*/, "")}</td><td></td></tr>`;
+    // Each level: its (heated) area and the outside perimeter of everything counted on it.
+    const lvls = bl[b.building] || {};
+    for (const lv of new Set([...Object.keys(b.by_level), ...Object.keys(lvls)]))
+      h += `<tr><td colspan="2" class="hint">${esc(b.building)} — ${esc(lv)}</td><td class="n">${b.by_level[lv] !== undefined ? fmtArea(b.by_level[lv]).replace(/ .*/, "") : ""}</td>` +
+        `<td class="n" title="Outside walls of this level">${lvls[lv] ? P(outerPerimeter(lvls[lv])) : ""}</td><td></td></tr>`;
+    h += `<tr class="total"><td colspan="2">${esc(b.building)} building area${b.semi || b.cold ? " (heated)" : ""}</td><td class="n">${fmtArea(b.building_area).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
+    if (b.semi) h += `<tr class="total"><td colspan="2">${esc(b.building)} semi-cold storage</td><td class="n">${fmtArea(b.semi).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
+    if (b.cold) h += `<tr class="total"><td colspan="2">${esc(b.building)} cold storage</td><td class="n">${fmtArea(b.cold).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
   }
-  if (t.site) h += `<tr class="total"><td colspan="2">Site area</td><td class="n">${fmtArea(t.site).replace(/ .*/, "")}</td><td></td></tr>`;
-  for (const [l, v] of siteLines(t)) h += `<tr><td colspan="2" class="hint">${esc(l)}</td><td class="n">${fmtArea(v).replace(/ .*/, "")}</td><td></td></tr>`;
-  if (coverageText(t)) h += `<tr class="total"><td colspan="3">${coverageText(t)}</td><td></td></tr>`;
+  if (t.site) h += `<tr class="total"><td colspan="2">Site area</td><td class="n">${fmtArea(t.site).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
+  for (const [l, v] of siteLines(t)) h += `<tr><td colspan="2" class="hint">${esc(l)}</td><td class="n">${fmtArea(v).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
+  if (coverageText(t)) h += `<tr class="total"><td colspan="4">${coverageText(t)}</td><td></td></tr>`;
   h += "</tbody></table>";
   if (!S.areas.length) h = `<div class="hint">No areas yet. Click a corner on the canvas, then type e.g. <code>R40 D28 L40 C</code>.</div>`;
   $("summary").innerHTML = h;
@@ -2078,7 +2133,8 @@ function exportSvg() {
     rightLines.map((l, i) => `<text x="${Wout - pad}" y="${(rightSz * (1 + i * 1.35)).toFixed(1)}" font-size="${rightSz}" text-anchor="end" ${F} fill="#374151">${esc(l)}</text>`).join("") +
     `<text x="${Wout - pad}" y="${(rightSz * (1 + rightLines.length * 1.35) + m * 0.2).toFixed(1)}" font-size="${m}" text-anchor="end" ${F} fill="#6b7280">${sc ? sc.text : "Not to scale"} · dimensions in ${S.units === "m" ? "metres" : "feet"}</text>` +
     `<line x1="${pad}" y1="${(titleH - m * 0.4).toFixed(1)}" x2="${Wout - pad}" y2="${(titleH - m * 0.4).toFixed(1)}" stroke="#9ca3af"/>` +
-    `<g transform="translate(0 ${titleH.toFixed(2)})">${body}</g>` + northArrow(Wout - pad - 1.6 * m, titleH + 2.6 * m, k);
+    `<g transform="translate(0 ${titleH.toFixed(2)})">${body}</g>` +
+    (visSymbols().some(x => x.type === "north") ? "" : northArrow(Wout - pad - 1.6 * m, titleH + 2.6 * m, k));
   if (rows.length) {
     let y = titleH + drawH + m * 0.4;
     // A "Built / ceiling" column appears only when some section has a year, ceiling height or storage class.
@@ -2170,9 +2226,12 @@ function areasJson() {
         semi_cold_storage_area: both(b.semi), cold_storage_area: both(b.cold),
         total_including_storage: both(b.building_area + b.semi + b.cold),
         dock_doors: doors(d.dock_doors), grade_level_doors: doors(d.grade_level_doors),
+        // Outside walls of each level: walls shared between its areas don't count.
+        outer_perimeter_by_level: Object.fromEntries(Object.entries(areasByBuildingLevel()[b.building] || {}).map(([lv, list]) => [lv, len(outerPerimeter(list))])),
       };
     }),
-    combined: [...groups.values()].map(g => ({ name: g.name, members: g.members.map(m => m.name), area: both(g.total) })),
+    combined: [...groups.values()].map(g => ({ name: g.name, members: g.members.map(m => m.name), area: both(g.total),
+      outer_perimeter: len(outerPerimeter(g.members)) })),
     site_area: t.site ? both(t.site) : null,
     measurements: S.dimlines.map(d => ({ label: d.text || "", length: len(dist(d.a, d.b)), page: (S.pages.find(p => p.id === pageOf(d)) || {}).name })),
     photos: S.symbols.filter(x => x.type === "photo").sort((x, y) => x.num - y.num)
@@ -2231,10 +2290,16 @@ const cmd = $("cmd");
 cmd.addEventListener("input", () => {
   const line = cmd.value;
   ghost = [];
+  ghostWalls = [];
   if (!line.trim()) { cmd.classList.remove("bad"); return render(); }
-  const r = parseLine(line);
+  let r = parseLine(line), waiting = null;
+  if (r.err) {
+    // A bare length at the end is waiting for its direction: the next arrow key.
+    const toks = line.trim().split(/\s+/), last = toks[toks.length - 1], rest = toks.slice(0, -1).join(" ");
+    if (parseLen(last) > 0) { r = rest ? parseLine(rest) : { ops: [] }; waiting = last; }
+  }
   if (r.err) { cmd.classList.add("bad"); status(r.err, "bad"); return render(); }
-  cmd.classList.remove("bad"); status("");
+  cmd.classList.remove("bad"); status(waiting ? `${waiting}: press an arrow key for its direction.` : "");
   let cur = draw ? lastPt().slice() : pen.slice();
   const start = draw ? draw.points[0] : cur.slice();
   const corners = [cur.slice()], rises = [];
@@ -2265,6 +2330,7 @@ cmd.addEventListener("input", () => {
   // Curves preview "out of the room" by the shape typed so far.
   const sg = outSign((draw ? draw.points.slice(0, -1) : []).concat(corners));
   ghost = outline({ points: corners, rise: rises.map(v => v * sg), closed: false });
+  ghostWalls = corners;
   render();
 });
 function submitCmd(line) {
@@ -2275,7 +2341,7 @@ function submitCmd(line) {
   ghost = [];
   if (res.err) { status(res.err, "bad"); return render(); }
   cmd.value = "";
-  status(res.msg || (draw ? `${draw.points.length - 1} wall(s) — keep typing, C to close.` : ""), res.msg ? "ok" : "");
+  status(res.msg || (draw ? `${draw.points.length - 1} wall(s). Next wall: a length and an arrow, then Enter. A closes the shape.` : ""), res.msg ? "ok" : "");
   renderPanel();
   if ($("autoFit").checked) fit(); else render();
 }
@@ -2284,10 +2350,9 @@ cmd.addEventListener("keydown", e => {
   if (e.key === "Enter") {
     e.preventDefault();
     const line = cmd.value.trim();
-    if (!line) {
-      if (draw && draw.points.length >= 3) status(finish(true), "ok");
-      return;
-    }
+    // An empty Enter doesn't close the shape (a double-tapped Enter can't close
+    // it by accident): A, or C, closes.
+    if (!line) return status(draw ? "Type the next wall (a length, then an arrow), or press A to close the shape." : "", "");
     submitCmd(line);
   } else if (ARROW_DIR[e.key] && !e.ctrlKey && !e.altKey) {
     // Number pad drawing (Apex style): type a length and press an arrow to give
@@ -2303,10 +2368,25 @@ cmd.addEventListener("keydown", e => {
     cmd.value = toks.join(" ");
     cmd.dispatchEvent(new Event("input"));   // preview it
     if (!$("status").classList.contains("bad")) status(`${cmd.value}: Enter to draw it, or another arrow to turn it.`);
+  } else if ((e.key === "a" || e.key === "A") && !cmd.value && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    autoClose();
   } else if (e.key === "Backspace" && !cmd.value && draw) {
     e.preventDefault(); undo();
   }
 });
+// A (Apex's auto-close): close the shape back to its start. When a straight
+// close would be a diagonal across the face of a building the shape started and
+// ended on, close along that building's walls (CW) instead.
+function autoClose() {
+  if (!draw || draw.points.length < 2) return status("Nothing to close yet: draw some walls first.", "bad");
+  const p = draw.points, s0 = p[0], l = p[p.length - 1];
+  const diagonal = Math.abs(s0[0] - l[0]) > 1e-3 && Math.abs(s0[1] - l[1]) > 1e-3;
+  const along = !wallsClosure(p).err;
+  if (along && (diagonal || p.length < 3)) return submitCmd("CW");
+  if (p.length >= 3) return submitCmd("C");
+  status("Can't close yet: an area needs at least three corners.", "bad");
+}
 
 // ---------------------------------------------------------------- events: keyboard
 document.addEventListener("keydown", e => {
@@ -2668,6 +2748,16 @@ onSelEdit("sCat", (a, el) => {
 onSelEdit("sInc", (a, el) => { a.included = el.checked; delete el.dataset.dirty; }, "change");
 onSelEdit("sFoot", (a, el) => { a.foot = el.checked; delete el.dataset.dirty; }, "change");
 onSelEdit("sDims", (a, el) => { a.dims = el.checked; delete el.dataset.dirty; }, "change");
+// Flip dimensions to the other side of the walls, for every selected area.
+$("sDimsSide").onclick = () => {
+  const areas = pickedItems().filter(x => x.kind === "area").map(x => x.it);
+  if (!areas.length) return;
+  pushHistory();
+  const out = !areas[0].dimsOut;
+  for (const a of areas) { if (out) a.dimsOut = true; else delete a.dimsOut; }
+  commit();
+  status(`Dimensions ${out ? "outside" : "inside"} ${areas.length > 1 ? `${areas.length} areas` : "this area"}.`, "ok");
+};
 onSelEdit("sFactor", (a, el) => { const v = parseFloat(el.value); if (v >= 0) a.factor = v; });
 onSelEdit("sNeg", (a, el) => { a.negative = el.checked; delete el.dataset.dirty; }, "change");
 onSelEdit("sYear", (a, el) => {
@@ -2800,8 +2890,9 @@ for (const k of ["title", "site", "address", "file", "preparer", "date"]) {
 $("tDraw").onclick = () => setTool("draw");
 $("tSelect").onclick = () => { if (draw) { draw = null; } setTool("select"); };
 $("tLabel").onclick = () => setTool("label");
-$("tOpening").onclick = () => setTool("opening");
-$("tSymbol").onclick = () => setTool("symbol");
+// The doors/windows/symbols section starts folded; these tools open it.
+$("tOpening").onclick = () => { $("dwsBox").open = true; setTool("opening"); };
+$("tSymbol").onclick = () => { $("dwsBox").open = true; setTool("symbol"); };
 $("tMeasure").onclick = () => { setTool("measure"); status("Measure: click one end, then the other (snaps to corners; Shift keeps it square)."); };
 $("tPhoto").onclick = () => { setTool("photo"); status(`Photo: click where photo ${nextPhotoNum()} was taken and drag the way it faces.`); };
 $("tCalib").onclick = () => setTool("calib");
