@@ -123,6 +123,15 @@ with the same list. *View ▸ Area labels show* chooses what each area's label
 shows: code, name, size. *Interior / fence line* is for lines that are drawn
 but never measured; an open line (`E`) becomes one unless it's a lot line.
 
+**Area labels and callouts.** Each area's label is its name (always bold),
+its size, its storage class if any, and "Built 1985 | Ceiling 12' / 16'" on
+one line. When the label doesn't fit inside the area at that text size (a
+small area, or the plan scaled down to fit the page), it's drawn as a
+**callout**: a box outside the area with a leader line to a dot in it.
+Callouts don't overlap each other; on a page export the plan is made as large
+as it can be with every callout still on the page, trying callouts around the
+plan and beside it. Drag a callout to move it.
+
 **Dimensions.** Decimal places are set next to the format (0 to 0.000).
 *Dims side* under *Selected* puts an area's dimensions inside or outside its
 walls (for every selected area). With
@@ -148,7 +157,7 @@ take no openings.
 
 **Dock and grade doors.** A truck dock door (default 9'×10') draws with dock
 bumpers; a grade-level overhead door defaults to 12'×14'. Both carry a size tag
-outside the wall (`DH 9'×10'`, `GL 12'×14'`) and are counted per building in
+outside the wall (`DK 9'×10'`, `GR 12'×14'`) and are counted per building in
 the calculations footer, the printed table (`2 × 9'×10'`) and `areas.json`
 (`dock_doors` and `grade_level_doors`: count and sizes). Overhead doors from
 older sketches are grade-level doors.
@@ -282,8 +291,15 @@ chosen *paper* and orientation less a 0.4" margin, or *Report figure*
 - *Scale* blank: the plan, title block and table are fitted to the page in
   both directions, so a sheet is always one page. A scale (`1" = 10'`, or
   `1:100` in metres) draws at that size and warns when it won't fit.
-- *min … pt* (10 by default) is the smallest text on the finished page;
-  dimensions, labels, door tags, the table and the title all scale up from it.
+- Nothing on a finished page is smaller than **12 pt**: *Smallest text* starts
+  at 12 and can only be raised; dimensions, labels, door tags, the table and
+  the title all scale up from it. On screen the sketch text uses the same
+  proportions (nothing under 12 px).
+- Pages default to **portrait**. On a narrow page the title shrinks to fit
+  beside the file / date lines (or those go under it), and the area table
+  sizes its columns to the page: if they still don't fit, the Built / ceiling
+  / storage details go on a line under each area, then a Building / level
+  column that's the same on every row moves into the Area heading.
   A dimension too long for its wall at that size is shortened (a curve drops
   its rise) or left off, and the status bar says how many. Letters inside a
   symbol (REF, W, D) that would print smaller are left off.

@@ -224,9 +224,9 @@
       <button id="bAreas" title="Areas for the job record">areas.json (all pages)</button>
       <div class="phead">Page setup (Print, PDF, PNG, JPG)</div>
       <div class="prow"><span>Paper</span><span><select id="exPaper" title="Page size for Print, PNG and JPG"><option value="letter">Letter</option><option value="legal">Legal</option><option value="11in 17in">Tabloid</option><option value="A4">A4</option><option value="A3">A3</option><option value="fig" title="6.5 × 9 in, no margin: drops into a letter-size report at full size">Report figure</option></select>
-        <select id="exOrient" title="Orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></span></div>
+        <select id="exOrient" title="Orientation"><option value="portrait" selected>Portrait</option><option value="landscape">Landscape</option></select></span></div>
       <div class="prow"><span>Scale</span><label title="Print scale. Blank = fit the page"><span id="scaleLbl">1" =</span> <input id="exScale" type="number" min="0" step="any" placeholder="fit" style="width:60px"><span id="scaleUnit">'</span></label></div>
-      <div class="prow"><span>Smallest text</span><label title="Smallest text on the finished page, in points"><input id="exMinPt" type="number" min="4" max="36" step="0.5" value="10" style="width:54px"> pt</label></div>
+      <div class="prow"><span>Smallest text</span><label title="Smallest text on the finished page, in points"><input id="exMinPt" type="number" min="12" max="36" step="0.5" value="12" style="width:54px"> pt</label></div>
       <div class="prow"><span>Image dpi</span><select id="exDpi" title="Image resolution for PNG and JPG"><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300" selected>300 dpi</option></select></div>
       <label title="Print the area table under the drawing"><input id="exTable" type="checkbox" checked> area table under the plan</label>
     </div></details>
@@ -299,7 +299,7 @@
   </div>
   <div id="selLabel" hidden>
     <div class="row"><label for="lText">Text</label><input id="lText" type="text" list="labelList"></div>
-    <div class="row"><label for="lSize">Size (px)</label><input id="lSize" type="number" min="6" max="48" value="12"></div>
+    <div class="row"><label for="lSize">Size</label><input id="lSize" type="number" min="12" max="48" value="12"></div>
     <div class="row"><label for="lBold">Bold</label><span><input id="lBold" type="checkbox"></span></div>
     <div class="row"><label for="lRot">Angle °</label><input id="lRot" type="number" step="5" value="0" title="Counter-clockwise; [ and ] turn it 15° (Shift 5°)"></div>
     <div class="btns"><button id="lDel">Delete label</button></div>
@@ -373,7 +373,7 @@
   <h3>Doors, windows, symbols</h3>
   <p>Pick a kind, width and (optional) height under <i>Doors, windows, symbols</i>, then with the <b>Door/Window</b> tool click a
   wall: the opening is centred where you click (snapped to the grid). <b>Truck dock door</b> (default 9'×10') and
-  <b>Grade-level overhead door</b> (12'×14') get a size tag outside the wall (<code>DH 9'×10'</code>, <code>GL 12'×14'</code>) and are
+  <b>Grade-level overhead door</b> (12'×14') get a size tag outside the wall (<code>DK 9'×10'</code>, <code>GR 12'×14'</code>) and are
   counted per building. Select the area to edit an opening: kind, wall, centre distance from the wall's first corner, width,
   height, swing <b>out</b> instead of into the room, and <b>⇄</b> to hinge at the other jamb. Openings move, rotate and
   mirror with their area and never change an area. Click a symbol in the palette, then click the plan to place it (keep clicking
@@ -422,7 +422,8 @@
   Every export is a real page: the <b>paper</b> and orientation (less a 0.4" margin), or <b>Report figure</b> (6.5 × 9", no margin, to
   drop into a letter-size report at full size). Leave the scale box blank and the plan, title and table are fitted to that page in
   both directions; or enter a scale (<code>1" = 10'</code>, or <code>1:100</code> in metres). <b>min … pt</b> is the smallest text on the
-  finished page (10 pt by default); everything else scales up from it. Place a PNG or JPG at its true page size and its text is
+  finished page (12 pt, and never less); everything else scales up from it. An area label that doesn't fit inside its
+  area becomes a callout (a box outside it with a leader line); drag it to move it. Place a PNG or JPG at its true page size and its text is
   that size too; <b>dpi</b> sets the image resolution. A dimension too long for its wall at that size is shortened, or left off with a
   warning. SVG, PNG and JPG are of the page shown; <b>Print</b> (and Save as PDF) makes one sheet per page.
   The Sketch panel's <b>Notes</b> print at the foot of every page (by default the not-to-scale and for-illustration-only notes); clear them to leave them off. <b>areas.json</b> records every area with building, level, category and size in both sq ft and m². File all of them into the
@@ -1221,7 +1222,7 @@ function hitTest(w) {
   // A dimension: clicking one hides or shows it (screen-space test).
   if ($("showDims").checked) {
     const [px, py] = w2s(view, W(), H(), w[0], w[1]), T = (x, y) => w2s(view, W(), H(), x, y);
-    for (const a of areas) if (a.dims && a.category !== "site") for (const d of dimSpecs(a, T)) {
+    for (const a of areas) if (a.dims && a.category !== "site") for (const d of dimSpecs(a, T, SCREEN_K)) {
       const r = d.ang * Math.PI / 180, dx = px - d.mx, dy = py - d.my;   // into the text's own (rotated) frame
       if (Math.abs(dx * Math.cos(r) + dy * Math.sin(r)) < Math.max(10, d.txt.length * 3) && Math.abs(-dx * Math.sin(r) + dy * Math.cos(r)) < 6)
         return { kind: "dim", id: a.id, wall: d.i };
@@ -1233,10 +1234,12 @@ function hitTest(w) {
     const hw = (l.text.length * (l.size || 12) * 0.3) / view.zoom, hh = (l.size || 12) * 0.6 / view.zoom;
     if (Math.abs(w[0] - l.x) < hw && Math.abs(w[1] - l.y) < hh) return { kind: "label", id: l.id };
   }
-  for (const a of areas) {
-    if (a.category === "line") continue;
-    const lp = labelPos(a);
-    if (Math.abs(w[0] - lp[0]) < 40 / view.zoom && Math.abs(w[1] - lp[1]) < 14 / view.zoom) return { kind: "area", id: a.id, onLabel: true };
+  {
+    const T = (x, y) => w2s(view, W(), H(), x, y), [px, py] = T(w[0], w[1]);
+    const o = { k: SCREEN_K, zoom: view.zoom, center: drawingCentre(), groups: groupsOf() };
+    const order = visAreas().sort((a, b) => (b.category === "site") - (a.category === "site"));
+    for (const { a, L } of layoutLabels(order, T, o).reverse())
+      if (Math.abs(px - L.x) <= L.w / 2 + 4 && Math.abs(py - L.y) <= L.h / 2 + 3) return { kind: "area", id: a.id, onLabel: true };
   }
   for (const a of areas) {
     const p = outline(a), n = p.length;
@@ -1321,6 +1324,7 @@ function scene(v, Wd, Ht, o) {
   // Site first, then buildings, so a lot line never hides a building.
   const order = visAreas().sort((a, b) => (b.category === "site") - (a.category === "site"));
   o.groups = groupsOf();
+  o.zoom = v.zoom; o.center = drawingCentre();
   // o.k scales every piece of text (and its offsets): 1 on screen; on a page export
   // it is set so the smallest text prints at the chosen minimum size.
   o.k = o.k || 1;
@@ -1329,16 +1333,17 @@ function scene(v, Wd, Ht, o) {
   for (const a of order) for (const op of a.openings || []) out.push(openingSvg(a, op, T, !o.noSel && isPicked("area", a.id), o.k));
   for (const s of visSymbols()) out.push(symbolSvg(s, T, v.zoom, !o.noSel && isPicked("symbol", s.id), o.minText, o.k));
   for (const d of visDimlines()) out.push(dimlineSvg(d, T, o.k, !o.noSel && isPicked("dimline", d.id)));
+  for (const { a, L } of layoutLabels(order, T, o)) out.push(labelSvg(L, o, isCalc(a) && !!storageOf(a)));
   for (const l of visLabels()) {
     const [sx, sy] = T(l.x, l.y), isSel = !o.noSel && isPicked("label", l.id);
-    const lsz = o.minText ? Math.max(l.size || 12, 10) * o.k : l.size || 12;
+    const lsz = o.minText ? Math.max(l.size || 12, 10) * o.k : Math.max(l.size || 12, 12);
     out.push(`<text x="${sx}" y="${sy}" font-size="${lsz}" text-anchor="middle" dominant-baseline="middle" ` +
       `font-family="Arial, Helvetica, sans-serif"${l.bold ? ' font-weight="bold"' : ""} fill="${isSel ? "#2563eb" : "#111827"}"` +
       `${l.rot ? ` transform="rotate(${-l.rot} ${sx} ${sy})"` : ""}>${esc(l.text)}</text>`);
   }
   // On screen, the page's north arrow sits in the corner (unless one is placed on the page).
   if (o.live && !visSymbols().some(x => x.type === "north"))
-    out.push(`<g opacity=".7">${northArrow(Wd - 26, 34, 0.8)}</g>`);
+    out.push(`<g opacity=".7">${northArrow(Wd - 26, 34, 0.95)}</g>`);
   if (o.live) out.push(handlesSvg(T), liveSvg(T));
   return out.join("");
 }
@@ -1439,34 +1444,98 @@ function areaSvg(a, T, o, isSel) {
         `${s.hidden ? ' text-decoration="line-through"' : ""} transform="rotate(${s.ang.toFixed(2)} ${s.mx.toFixed(1)} ${s.my.toFixed(1)})">${esc(s.txt)}</text>`);
     }
   }
-  if (line) return out.join("");
-  // Label: code, name and size as chosen under "Label shows". Combined areas:
-  // every member shows its name only, and the largest member carries the
-  // combined name and total.
-  const sh = S.show || { name: true, area: true };
-  // On a hatched (storage) area, text gets a white halo so it stays readable.
-  const halo = isCalc(a) && storageOf(a) ? ` stroke="#fff" stroke-width="${3 * o.k}" stroke-linejoin="round" paint-order="stroke"` : "";
-  const [lx, ly] = T(...labelPos(a)), F = `text-anchor="middle" font-family="Arial, Helvetica, sans-serif"${halo}`;
-  const head = [sh.code && c.code ? c.code : "", sh.name ? a.name : ""].filter(Boolean).join(" ");
-  const k = o.k, big = `font-size="${12 * k}"`, small = `font-size="${11 * k}"`;
-  let top = [head, `${big} font-weight="bold" fill="#111827"`];
-  let bottom = sh.area ? [isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), `${small} fill="#374151"`] : null;
-  if (g) {
-    if (a === g.leader) {
-      top = [head, `${small} fill="#374151"`];
-      bottom = [`${g.name}${sh.area ? " " + fmtArea(g.total) : ""}`, `${big} font-weight="bold" fill="#111827"`];
-    } else bottom = null;
+  return out.join("");
+}
+// Every area label on the page, laid out together so callouts don't land on
+// each other: a callout that overlaps one already placed is nudged along, up
+// or down, until it's clear. Returns [{ a, L }] in drawing order.
+function layoutLabels(areas, T, o) {
+  const placed = [], out = [], m = 3 * (o.k || 1);
+  for (const a of areas) {
+    if (a.category === "line") continue;
+    const L = labelBlock(a, T, o, isCalc(a) ? groupOf(a, o.groups || groupsOf()) : null);
+    if (!L) continue;
+    if (L.callout) {
+      const hits = () => placed.find(q => Math.abs(q.x - L.x) < (q.w + L.w) / 2 + m && Math.abs(q.y - L.y) < (q.h + L.h) / 2 + m);
+      for (let i = 0, q; i < 40 && (q = hits()); i++) L.y = L.y >= q.y ? q.y + (q.h + L.h) / 2 + m + 0.5 : q.y - (q.h + L.h) / 2 - m - 0.5;
+      placed.push(L);
+    }
+    out.push({ a, L });
   }
-  if (!top[0]) { top = bottom; bottom = null; }
-  if (top) out.push(`<text x="${lx.toFixed(1)}" y="${(ly - (bottom ? 7 * k : 0)).toFixed(1)}" ${F} ${top[1]}>${esc(top[0])}</text>`);
-  if (bottom) out.push(`<text x="${lx.toFixed(1)}" y="${(ly + 8 * k).toFixed(1)}" ${F} ${bottom[1]}>${esc(bottom[0])}</text>`);
-  // Details line: year built, ceiling height, storage class.
-  // A storage class always shows, since it moves the area out of the main GBA.
-  // Detail lines under the label, one each: storage class (always shown, since it
-  // moves the area out of the main GBA), year built, ceiling height.
-  const info = [STORAGE[storageOf(a)].short, sh.info !== false && a.yearBuilt ? `Built ${a.yearBuilt}` : "",
-    sh.info !== false && (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean);
-  info.forEach((t, j) => out.push(`<text x="${lx.toFixed(1)}" y="${(ly + ((bottom ? 21 : 14) + j * 12) * k).toFixed(1)}" ${F} font-size="${10 * k}" fill="#4b5563">${esc(t)}</text>`));
+  return out;
+}
+// ---------------------------------------------------------------- area labels and callouts
+// An area's label, line by line: code and name (bold); its size, or on the
+// largest member of a combination the combined name and total; the storage
+// class (always, since it moves the area out of the main GBA); and
+// "Built 1985 | Ceiling 16'" when details are shown. Sizes scale with o.k.
+function labelLines(a, o, g) {
+  const sh = S.show || { name: true, area: true }, c = CAT[a.category], k = o.k || 1, lines = [];
+  const head = [sh.code && c.code ? c.code : "", sh.name ? a.name : ""].filter(Boolean).join(" ");
+  if (head) lines.push({ t: head, fs: 12 * k, bold: true, fill: "#111827" });
+  if (g) { if (a === g.leader) lines.push({ t: `${g.name}${sh.area ? " " + fmtArea(g.total) : ""}`, fs: 12 * k, bold: true, fill: "#111827" }); }
+  else if (sh.area) lines.push({ t: isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), fs: 11 * k, fill: "#374151" });
+  const st = STORAGE[storageOf(a)].short;
+  if (st) lines.push({ t: st, fs: 10 * k, fill: "#4b5563" });
+  const details = sh.info !== false ? [a.yearBuilt ? `Built ${a.yearBuilt}` : "", (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean).join(" | ") : "";
+  if (details) lines.push({ t: details, fs: 10 * k, fill: "#4b5563" });
+  return lines;
+}
+const textWidth = (t, fs, bold) => t.length * fs * (bold ? 0.6 : 0.55);   // Arial's average character width
+// The middle of what's drawn on this page (callouts point away from it).
+function drawingCentre() {
+  const pts = visAreas().filter(x => x.category !== "site").flatMap(x => x.points);
+  if (!pts.length) return null;
+  const b = bbox(pts);
+  return [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
+}
+// Where an area's label goes, in screen units. Inside the area, centred on its
+// label point, when the whole block fits within the area's outline. When it
+// doesn't (a small area, or the plan scaled down to fit the page), it becomes
+// a callout: the block sits outside the area, away from the middle of the
+// drawing, with a leader line to a dot in the area. Dragging the label moves
+// the callout (a.labelOffset).
+function labelBlock(a, T, o, g) {
+  const lines = labelLines(a, o, g);
+  if (!lines.length) return null;
+  const w = Math.max(...lines.map(l => textWidth(l.t, l.fs, l.bold))), h = lines.reduce((t, l) => t + l.fs * 1.25, 0);
+  const [lx, ly] = T(...labelPos(a)), pad = 2 * (o.k || 1);
+  if (!a.closed) return { lines, w, h, x: lx, y: ly, callout: false };
+  const poly = outline(a).map(q => T(q[0], q[1]));
+  const box = [[lx - w / 2 - pad, ly - h / 2 - pad], [lx + w / 2 + pad, ly - h / 2 - pad], [lx + w / 2 + pad, ly + h / 2 + pad], [lx - w / 2 - pad, ly + h / 2 + pad]];
+  const crosses = poly.some((q, i) => box.some((r, j) => segsTouch(q, poly[(i + 1) % poly.length], r, box[(j + 1) % 4])));
+  if (box.every(q => pointInPoly(q, poly)) && !crosses) return { lines, w, h, x: lx, y: ly, callout: false };
+  const cw = centroid(outline(a)), [ax, ay] = T(cw[0], cw[1]), b = bbox(poly);
+  const cen = o.center ? T(...o.center) : [ax, ay + 1];
+  let dx = ax - cen[0], dy = ay - cen[1];
+  const dl = Math.hypot(dx, dy);
+  if (o.calloutSide) { dx = dx < 0 ? -1 : 1; dy = 0; }          // beside the plan, at the area's height
+  else if (dl < 1) { dx = 0.6; dy = -0.8; } else { dx /= dl; dy /= dl; }
+  const reach = Math.abs(dx) * (b.x1 - b.x0) / 2 + Math.abs(dy) * (b.y1 - b.y0) / 2;
+  const gap = 9 * (o.k || 1) + Math.abs(dx) * w / 2 + Math.abs(dy) * h / 2;
+  const off = a.labelOffset || [0, 0], z = o.zoom || 1;
+  return { lines, w, h, x: ax + dx * (reach + gap) + off[0] * z, y: ay + dy * (reach + gap) - off[1] * z, callout: true, anchor: [ax, ay] };
+}
+function labelSvg(L, o, hatched) {
+  const k = o.k || 1, out = [];
+  // Text on a hatch, or in a callout, gets a white halo so it stays readable.
+  const halo = hatched || L.callout ? ` stroke="#fff" stroke-width="${3 * k}" stroke-linejoin="round" paint-order="stroke"` : "";
+  const x0 = L.x - L.w / 2 - 3 * k, y0 = L.y - L.h / 2 - 2 * k, bw = L.w + 6 * k, bh = L.h + 4 * k;
+  if (L.callout) {
+    const [ax, ay] = L.anchor, px = Math.max(x0, Math.min(x0 + bw, ax)), py = Math.max(y0, Math.min(y0 + bh, ay));
+    out.push(`<path d="M${px.toFixed(1)} ${py.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}" stroke="#6b7280" stroke-width="0.9" fill="none"/>` +
+      `<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="${(2.2 * k).toFixed(1)}" fill="#6b7280"/>` +
+      `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="#fff" fill-opacity=".9" stroke="#d1d5db" stroke-width="0.6"/>`);
+    // Exports make room for callouts: remember how far they reach.
+    const cb = o.cb || (o.cb = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
+    cb.x0 = Math.min(cb.x0, x0); cb.y0 = Math.min(cb.y0, y0); cb.x1 = Math.max(cb.x1, x0 + bw); cb.y1 = Math.max(cb.y1, y0 + bh);
+  }
+  let y = L.y - L.h / 2;
+  for (const l of L.lines) {
+    y += l.fs * 1.25;
+    out.push(`<text x="${L.x.toFixed(1)}" y="${(y - l.fs * 0.3).toFixed(1)}" font-size="${l.fs}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"` +
+      `${l.bold ? ' font-weight="bold"' : ""} fill="${l.fill}"${halo}>${esc(l.t)}</text>`);
+  }
   return out.join("");
 }
 // ---------------------------------------------------------------- doors, windows and openings
@@ -1476,14 +1545,14 @@ function areaSvg(a, T, o, isSel) {
 // mirrors with its area and never changes an area. A door swings into the room
 // unless "out"; its hinge is at the jamb nearer the wall's first corner unless
 // "hingeEnd". Grade-level and dock-height overhead doors carry a size tag
-// outside the wall (GL 12'×14', DH 9'×10') and are counted in the summary.
+// outside the wall (GR 12'×14', DK 9'×10') and are counted in the summary.
 // ("overhead" is the grade-level door's key, kept from earlier sketches.)
 const OPENINGS = {
   door:     { label: "Door",                     ft: 3,  ht: 0 },
   double:   { label: "Double door",              ft: 6,  ht: 0 },
   window:   { label: "Window",                   ft: 4,  ht: 0 },
-  overhead: { label: "Grade-level overhead door", ft: 12, ht: 14, tag: "GL", count: "grade_level_doors" },
-  dock:     { label: "Truck dock door",          ft: 9,  ht: 10, tag: "DH", count: "dock_doors" },
+  overhead: { label: "Grade-level overhead door", ft: 12, ht: 14, tag: "GR", count: "grade_level_doors" },
+  dock:     { label: "Truck dock door",          ft: 9,  ht: 10, tag: "DK", count: "dock_doors" },
   opening:  { label: "Opening",                  ft: 4,  ht: 0 },
 };
 const toUnits = ft => S.units === "m" ? Math.round(ft * FT_TO_M * 10) / 10 : ft;
@@ -1537,13 +1606,13 @@ function openingSvg(a, o, T, isSel, k = 1) {
   else if (o.kind === "overhead" || o.kind === "dock") {
     // Dashed line just inside the room (the door's swing side), the usual overhead-door mark.
     const side = v => { const [ix, iy] = T(g.p0[0] + v[0], g.p0[1] + v[1]); return Math.sign((ix - x0) * nx + (iy - y0) * ny) || 1; };
-    const k = side(g.nrm) * 5, ko = side(g.outward);
-    out.push(`<path d="${off(k)}" stroke="${ink}" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
+    const kd = side(g.nrm) * 5, ko = side(g.outward);
+    out.push(`<path d="${off(kd)}" stroke="${ink}" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
     // A dock door gets its bumpers: two small blocks outside, one at each jamb.
     if (o.kind === "dock") for (const [x, y] of [[x0 + tx * 2, y0 + ty * 2], [x1 - tx * 6, y1 - ty * 6]])
       out.push(`<path d="M${(x + nx * ko * 2).toFixed(2)} ${(y + ny * ko * 2).toFixed(2)}l${(tx * 4).toFixed(2)} ${(ty * 4).toFixed(2)}` +
         `l${(nx * ko * 5).toFixed(2)} ${(ny * ko * 5).toFixed(2)}l${(-tx * 4).toFixed(2)} ${(-ty * 4).toFixed(2)}Z" fill="${ink}" stroke="none"/>`);
-    // Size tag outside the wall, reading along it: GL 12'×14' / DH 9'×10'.
+    // Size tag outside the wall, reading along it: GR 12'×14' / DK 9'×10'.
     const mx = (x0 + x1) / 2 + nx * ko * 16 * k, my = (y0 + y1) / 2 + ny * ko * 16 * k;
     let ang = Math.atan2(ty, tx) * 180 / Math.PI;
     if (ang > 90) ang -= 180; else if (ang <= -90) ang += 180;
@@ -1587,7 +1656,7 @@ function parseCeilings(text) {
 const fmtCeilings = a => (a.ceilings || []).map(fmtLen).join(" / ");
 function infoText(a) {
   return [STORAGE[storageOf(a)].short, a.yearBuilt ? `Built ${a.yearBuilt}` : "",
-    (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean).join(" · ");
+    (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean).join(" | ");
 }
 
 // The nearest straight wall to a point (world), within tol: { a, wall, at, L }.
@@ -1754,7 +1823,7 @@ function liveSvg(T) {
     for (let i = 1; i < draw.points.length; i++) {
       const L = dist(draw.points[i - 1], draw.points[i]);
       const mx = (sp[i - 1][0] + sp[i][0]) / 2, my = (sp[i - 1][1] + sp[i][1]) / 2;
-      out.push(`<text x="${mx}" y="${my - 6}" font-size="11" text-anchor="middle" fill="#2563eb" font-family="Arial">${esc(fmtLen(L))}</text>`);
+      out.push(`<text x="${mx}" y="${my - 6}" font-size="12" text-anchor="middle" fill="#2563eb" font-family="Arial">${esc(fmtLen(L))}</text>`);
     }
     out.push(`<circle cx="${sp[0][0]}" cy="${sp[0][1]}" r="4" fill="#fff" stroke="#2563eb" stroke-width="2"/>`);
     const e = sp[sp.length - 1];
@@ -1791,8 +1860,11 @@ function liveSvg(T) {
   }
   return out.join("");
 }
+// On screen, sketch text uses the same proportions as a page at 12 pt: the
+// smallest (detail lines, door tags) is 12 px.
+const SCREEN_K = 1.2;
 function render() {
-  svg.innerHTML = scene(view, W(), H(), { grid: true, underlay: true, dims: $("showDims").checked, live: true });
+  svg.innerHTML = scene(view, W(), H(), { grid: true, underlay: true, dims: $("showDims").checked, live: true, k: SCREEN_K });
 }
 
 // ---------------------------------------------------------------- combined areas
@@ -2074,7 +2146,7 @@ function syncInfoFields() {
 // ---------------------------------------------------------------- exports
 // Every export is a real page laid out in points (1/72 in): the chosen paper
 // less its margins, or the report-figure size. Font sizes are therefore print
-// sizes. "Min text" is the smallest text on the page (10 pt by default); all
+// sizes. "Min text" is the smallest text on the page (12 pt, never less); all
 // other text scales up from it. Without a scale the plan is fitted to what the
 // page has left after the title block and the table, in both directions, so a
 // sheet is always one page.
@@ -2093,7 +2165,9 @@ function exportScale() {
   if (!(X > 0)) return null;
   return { X, zoom: S.units === "m" ? PT * 39.3701 / X : PT / X, text: S.units === "m" ? `Scale 1:${fmtNum(X, 2)}` : `Scale 1" = ${fmtNum(X, 2)}'` };
 }
-function minTextPt() { const v = parseFloat($("exMinPt").value); return v >= 4 && v <= 36 ? v : 10; }
+// Nothing on a finished page is smaller than 12 pt; the setting can only raise it.
+const MIN_TEXT_PT = 12;
+function minTextPt() { const v = parseFloat($("exMinPt").value); return v >= MIN_TEXT_PT && v <= 36 ? v : MIN_TEXT_PT; }
 let exportNotes = [];   // what the last export had to warn about
 function exportSvg() {
   const pts = allPoints(false);
@@ -2113,7 +2187,7 @@ function exportSvg() {
       ? ` (${fmtArea(areaOf(a))} × ${a.negative ? "−" : ""}${fmtNum(factorOf(a), 2)})` : "";
     for (const a of list) rows.push([a.name, a.category === "site" ? "Site" : [a.building, a.level].filter(Boolean).join(" — "),
       CAT[a.category].label + calc(a), fmtArea(netAreaOf(a)), a.included && a.category !== "site" ? "yes" : "", false,
-      [a.yearBuilt || "", fmtCeilings(a), STORAGE[a.storage || ""].short].filter(Boolean).join(" · ")]);
+      [a.yearBuilt ? `Built ${a.yearBuilt}` : "", (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : "", STORAGE[storageOf(a)].short].filter(Boolean).join(" | ")]);
     for (const g of groupsOf().values()) {
       if (!g.members.some(visible)) continue;
       rows.push([`${g.name} (combined)`, g.members.map(m => m.name).join(" + "), "", fmtArea(g.total), "", true]);
@@ -2140,14 +2214,23 @@ function exportSvg() {
   }
   // Title block: title (and page / level) left, file and date right; then the site line.
   const info = S.info, pIdx = S.pages.findIndex(p => p.id === curPage), multi = S.pages.length > 1;
-  const titleSz = 2 * m, subSz = 1.3 * m, rightSz = 1.1 * m;
   const title = (info.title || "Sketch") + (multi ? ` — ${S.pages[pIdx].name}` : "") + (viewLevel ? ` — ${viewLevel}` : "");
   const site = [info.site, info.address].filter(Boolean).join(" — ");
+  const note = `${sc ? sc.text : "Not to scale"} · dimensions in ${S.units === "m" ? "metres" : "feet"}`;
   const rightLines = [info.file ? "File " + info.file : "", [info.preparer, info.date].filter(Boolean).join(" · "),
     multi ? `Page ${pIdx + 1} of ${S.pages.length}` : ""].filter(Boolean);
+  // Title and site line on the left, file / date / page / scale on the right.
+  // On a narrow (portrait) page the title shrinks to fit beside them, never
+  // below 1.3× the minimum; if it still can't, the right-hand lines go under it.
+  const rightSz = 1.1 * m, rightW = Math.max(textWidth(note, m), ...rightLines.map(l => textWidth(l, rightSz)), 0);
+  const room = W - 2 * pad - rightW - 1.5 * m;
+  const fitSz = (t, want, least, bold) => Math.max(least, Math.min(want, room / Math.max(1, t.length * (bold ? 0.6 : 0.55))));
+  const titleSz = fitSz(title, 2 * m, 1.3 * m, true), subSz = site ? fitSz(site, 1.3 * m, m, false) : 1.3 * m;
+  const stacked = textWidth(title, titleSz, true) > room || (site && textWidth(site, subSz) > room);
   const leftH = titleSz * 1.1 + (site ? subSz * 1.5 : 0), rightH = rightLines.length * rightSz * 1.35 + m * 1.35;
-  const titleH = Math.max(leftH, rightH) + m * 0.9;
-  const rowH = 1.7 * m, tableH = rows.length ? rowH * (rows.length + 1) + m * 1.2 : 0;
+  const titleH = (stacked ? leftH + m * 1.6 : Math.max(leftH, rightH)) + m * 0.9;
+  const rowH = 1.7 * m, tl = tableLayout(rows, m, W - 2 * pad);
+  const tableH = rows.length ? rowH * (tl.lines + 1) + m * 1.2 : 0;
   // Page notes along the foot of the page ("not to scale", "for illustration only").
   const notes = notesOf(), footH = Math.max(notes.length * m * 1.35 + m * 0.8, m * 1.6);   // always room for the version line
   // The drawing: fitted into what's left of the page, or at the set scale.
@@ -2166,9 +2249,30 @@ function exportSvg() {
     zoom = Math.min((W - 2 * drawPad) / bw, Math.max(drawH - 2 * drawPad, m * 4) / bh);
   }
   const v = { cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, zoom };
-  const o = { grid: false, underlay: false, dims: $("showDims").checked, live: false, noSel: true, k, minText: m, fitDims: true };
-  const body = scene(v, Wout, drawH, o);
-  if (o.droppedDims) exportNotes.push(`⚠ ${o.droppedDims} dimension(s) were too long for their walls at ${fmtNum(m, 1)} pt and were left off. Use bigger paper, a smaller minimum, or hide neighbouring dimensions.`);
+  // Callouts sit outside their areas, so they can reach past the plan: when
+  // fitting to the page, shrink the plan until they're inside the drawing space.
+  let o, body;
+  const draft = (z, side) => {
+    v.zoom = z;
+    o = { grid: false, underlay: false, dims: $("showDims").checked, live: false, noSel: true, k, minText: m, fitDims: true, calloutSide: side };
+    body = scene(v, Wout, drawH, o);
+    const edge = m * 0.6;
+    return !o.cb || (o.cb.x0 >= edge && o.cb.x1 <= Wout - edge && o.cb.y0 >= edge && o.cb.y1 <= drawH - edge);
+  };
+  // The largest plan at which every callout still lands on the page: try the
+  // full fit; otherwise search, with callouts around the plan and beside it,
+  // and keep whichever lets the plan be bigger.
+  if (!draft(zoom, false) && !sc) {
+    const best = side => {
+      let lo = zoom * 0.2, hi = zoom;
+      if (draft(zoom, side)) return zoom;
+      for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (draft(mid, side)) lo = mid; else hi = mid; }
+      return lo;
+    };
+    const zr = best(false), zs = best(true);
+    draft(Math.max(zr, zs), zs > zr);
+  }
+  if (o.droppedDims) exportNotes.push(`⚠ ${o.droppedDims} dimension(s) were too long for their walls at ${fmtNum(m, 1)} pt and were left off. Use bigger paper or landscape, or hide neighbouring dimensions.`);
   const F = `font-family="Arial, Helvetica, sans-serif"`;
   // Sized in inches so it prints, rasterises and places at its true size; a hair
   // under the page height so rounding never spills onto a second sheet.
@@ -2177,30 +2281,55 @@ function exportSvg() {
     `<rect width="100%" height="100%" fill="#fff"/>` +
     `<text x="${pad}" y="${(titleSz * 1.05).toFixed(1)}" font-size="${titleSz}" font-weight="bold" ${F} fill="#111827">${esc(title)}</text>` +
     (site ? `<text x="${pad}" y="${(titleSz * 1.05 + subSz * 1.4).toFixed(1)}" font-size="${subSz}" ${F} fill="#374151">${esc(site)}</text>` : "") +
-    rightLines.map((l, i) => `<text x="${Wout - pad}" y="${(rightSz * (1 + i * 1.35)).toFixed(1)}" font-size="${rightSz}" text-anchor="end" ${F} fill="#374151">${esc(l)}</text>`).join("") +
-    `<text x="${Wout - pad}" y="${(rightSz * (1 + rightLines.length * 1.35) + m * 0.2).toFixed(1)}" font-size="${m}" text-anchor="end" ${F} fill="#6b7280">${sc ? sc.text : "Not to scale"} · dimensions in ${S.units === "m" ? "metres" : "feet"}</text>` +
+    (stacked
+      ? `<text x="${pad}" y="${(leftH + m * 1.1).toFixed(1)}" font-size="${m}" ${F} fill="#374151">${esc([...rightLines, note].join("  ·  "))}</text>`
+      : rightLines.map((l, i) => `<text x="${Wout - pad}" y="${(rightSz * (1 + i * 1.35)).toFixed(1)}" font-size="${rightSz}" text-anchor="end" ${F} fill="#374151">${esc(l)}</text>`).join("") +
+        `<text x="${Wout - pad}" y="${(rightSz * (1 + rightLines.length * 1.35) + m * 0.2).toFixed(1)}" font-size="${m}" text-anchor="end" ${F} fill="#6b7280">${note}</text>`) +
     `<line x1="${pad}" y1="${(titleH - m * 0.4).toFixed(1)}" x2="${Wout - pad}" y2="${(titleH - m * 0.4).toFixed(1)}" stroke="#9ca3af"/>` +
     `<g transform="translate(0 ${titleH.toFixed(2)})">${body}</g>` +
     (visSymbols().some(x => x.type === "north") ? "" : northArrow(Wout - pad - 1.6 * m, titleH + 2.6 * m, k));
   if (rows.length) {
     let y = titleH + drawH + m * 0.4;
-    // A "Built / ceiling" column appears only when some section has a year, ceiling height or storage class.
-    const details = rows.some(r => r[6]), span = Wout - 2 * pad;
-    const cols = (details ? [0, .22, .40, .58, .80, .88] : [0, .29, .51, null, .74, .86]).map(f => f === null ? null : pad + f * span);
-    const sizeX = cols[4] + .07 * span;
-    const cell = (text, i, bold) => cols[i] === null ? "" :
-      `<text x="${(i === 4 ? sizeX : cols[i]).toFixed(1)}" y="${y.toFixed(1)}" font-size="${m}" ${F} ${bold ? 'font-weight="bold"' : ""} ${i === 4 ? 'text-anchor="end"' : ""}>${esc(text)}</text>`;
+    const cell = (text, i, bold, fill = "#111827") => tl.x[i] === null || !text ? "" :
+      `<text x="${(pad + tl.x[i]).toFixed(1)}" y="${y.toFixed(1)}" font-size="${m}" ${F} fill="${fill}" ${bold ? 'font-weight="bold"' : ""} ${i === 4 ? 'text-anchor="end"' : ""}>${esc(text)}</text>`;
     s += `<line x1="${pad}" y1="${y.toFixed(1)}" x2="${Wout - pad}" y2="${y.toFixed(1)}" stroke="#9ca3af"/>`;
     y += rowH;
-    ["Area", "Building / level", "Category", "Built · ceiling · storage", "Size", "In bldg area"].forEach((h, i) => s += cell(h, i, true));
+    tl.head.forEach((h, i) => s += cell(h, i, true));
     for (const r of rows) {
       y += rowH;
       [r[0], r[1], r[2], r[6] || "", r[3], r[4]].forEach((c, i) => s += cell(c, i, r[5]));
+      // Details that don't fit as a column go on their own line under the area.
+      if (tl.subRows && r[6]) { y += rowH; s += `<text x="${(pad + m).toFixed(1)}" y="${y.toFixed(1)}" font-size="${m}" ${F} fill="#4b5563">${esc(r[6])}</text>`; }
     }
   }
   notes.forEach((t, i) => s += `<text x="${pad}" y="${(Hout - footH + m * 1.2 + i * m * 1.35).toFixed(1)}" font-size="${m}" ${F} fill="#374151">${esc(t)}</text>`);
   s += `<text x="${Wout - pad}" y="${(Hout - m * 0.5).toFixed(1)}" font-size="${m}" text-anchor="end" ${F} fill="#9ca3af">JKS Sketch ${APP_VERSION}</text>`;
   return s + "</svg>";
+}
+// Columns of the area table, sized to their contents at text size m within
+// the page width. If they don't fit: the "Built | ceiling | storage" details
+// move to a line under each area; then a Building / level column that's the
+// same on every row is dropped (named in the Area heading instead); then the
+// Category column. Returns x positions (Size is right-aligned at its x), the
+// headings, and how many lines the rows take.
+function tableLayout(rows, m, span) {
+  const data = rows.filter(r => !r[5]), gap = m * 1.3;
+  const head = ["Area", "Building / level", "Category", "Built | ceiling | storage", "Size", "In bldg"];
+  const show = [true, true, true, data.some(r => r[6]), true, true];
+  const colOf = (r, i) => [r[0], r[1], r[2], r[6] || "", r[3], r[4]][i];
+  const width = i => Math.max(textWidth(head[i], m, true), ...data.map(r => textWidth(colOf(r, i) || "", m)));
+  const total = () => show.reduce((t, on, i) => t + (on ? width(i) : 0), 0) + gap * (show.filter(Boolean).length - 1);
+  let subRows = false;
+  if (total() > span && show[3]) { show[3] = false; subRows = true; }
+  if (total() > span && new Set(data.map(r => r[1])).size <= 1) { show[1] = false; if (data[0] && data[0][1]) head[0] = `Area (${data[0][1]})`; }
+  if (total() > span) show[2] = false;
+  // Spread what's left over evenly between the columns.
+  const on = show.map((v, i) => v ? i : -1).filter(i => i >= 0), extra = Math.max(0, span - total()) / Math.max(1, on.length - 1);
+  const x = Array(6).fill(null);
+  let at = 0;
+  for (const i of on) { x[i] = i === 4 ? at + width(i) : at; at += width(i) + gap + extra; }
+  const lines = rows.length + (subRows ? data.filter(r => r[6]).length : 0);
+  return { x, head, subRows, lines };
 }
 function northArrow(x, y, k = 1) {
   return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${k}) rotate(${-(S.northRot || 0)})"><path d="M0 -22L8 10L0 4L-8 10Z" fill="#111827"/>` +
@@ -2853,7 +2982,7 @@ onSelEdit("sCeil", (a, el) => {
   if (r.list.length) a.ceilings = r.list; else delete a.ceilings;
 }, "change");
 onSelEdit("lText", (l, el) => l.text = el.value);
-onSelEdit("lSize", (l, el) => l.size = Math.max(6, Math.min(48, +el.value || 12)));
+onSelEdit("lSize", (l, el) => l.size = Math.max(12, Math.min(48, +el.value || 12)));
 onSelEdit("lBold", (l, el) => { l.bold = el.checked; delete el.dataset.dirty; }, "change");
 onSelEdit("lRot", (l, el) => { const v = parseFloat(el.value); if (isFinite(v)) l.rot = v; });
 $("northRot").addEventListener("change", () => { const v = parseFloat($("northRot").value); pushHistory(); S.northRot = isFinite(v) ? ((v % 360) + 360) % 360 : 0; commit(); });
