@@ -228,7 +228,8 @@
       <div class="prow"><span>Scale</span><label title="Print scale. Blank = fit the page"><span id="scaleLbl">1" =</span> <input id="exScale" type="number" min="0" step="any" placeholder="fit" style="width:60px"><span id="scaleUnit">'</span></label></div>
       <div class="prow"><span>Smallest text</span><label title="Smallest text on the finished page, in points"><input id="exMinPt" type="number" min="12" max="36" step="0.5" value="12" style="width:54px"> pt</label></div>
       <div class="prow"><span>Image dpi</span><select id="exDpi" title="Image resolution for PNG and JPG"><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300" selected>300 dpi</option></select></div>
-      <label title="Print the area table under the drawing"><input id="exTable" type="checkbox" checked> area table under the plan</label>
+      <div class="prow"><span>Under the plan</span><select id="exBottom" title="What's printed under the drawing">
+        <option value="totals" selected>Totals</option><option value="table">Full area table</option><option value="none">Nothing</option></select></div>
     </div></details>
     <button id="bPrint" title="Print every page, or Save as PDF">Print</button>
   </div>
@@ -423,7 +424,8 @@
   drop into a letter-size report at full size). Leave the scale box blank and the plan, title and table are fitted to that page in
   both directions; or enter a scale (<code>1" = 10'</code>, or <code>1:100</code> in metres). <b>min … pt</b> is the smallest text on the
   finished page (12 pt, and never less); everything else scales up from it. An area label that doesn't fit inside its
-  area becomes a callout (a box outside it with a leader line); drag it to move it. Place a PNG or JPG at its true page size and its text is
+  area becomes a callout (a box outside it with a leader line); drag it to move it. <b>Under the plan</b> (Export menu): <b>Totals</b>
+  (default: a short strip of GBA, storage, site, footprint, coverage and doors), the <b>Full area table</b>, or <b>Nothing</b>. Place a PNG or JPG at its true page size and its text is
   that size too; <b>dpi</b> sets the image resolution. A dimension too long for its wall at that size is shortened, or left off with a
   warning. SVG, PNG and JPG are of the page shown; <b>Print</b> (and Save as PDF) makes one sheet per page.
   The Sketch panel's <b>Notes</b> print at the foot of every page (by default the not-to-scale and for-illustration-only notes); clear them to leave them off. <b>areas.json</b> records every area with building, level, category and size in both sq ft and m². File all of them into the
@@ -1451,15 +1453,35 @@ function areaSvg(a, T, o, isSel) {
 // or down, until it's clear. Returns [{ a, L }] in drawing order.
 function layoutLabels(areas, T, o) {
   const placed = [], out = [], m = 3 * (o.k || 1);
+  // What a callout mustn't cover: the plan's areas (not the site) and other callouts.
+  const rects = areas.filter(x => x.closed && x.category !== "site" && x.category !== "line")
+    .map(x => { const q = outline(x).map(p => T(p[0], p[1])), b = bbox(q); return { x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, w: b.x1 - b.x0, h: b.y1 - b.y0 }; });
+  const clash = (L, r) => Math.abs(r.x - L.x) < (r.w + L.w) / 2 + m && Math.abs(r.y - L.y) < (r.h + L.h) / 2 + m;
+  const onPage = L => !o.bounds || (L.x - L.w / 2 >= o.bounds.edge && L.x + L.w / 2 <= o.bounds.w - o.bounds.edge &&
+    L.y - L.h / 2 >= o.bounds.edge && L.y + L.h / 2 <= o.bounds.h - o.bounds.edge);
   for (const a of areas) {
     if (a.category === "line") continue;
     const L = labelBlock(a, T, o, isCalc(a) ? groupOf(a, o.groups || groupsOf()) : null);
     if (!L) continue;
-    if (L.callout) {
-      const hits = () => placed.find(q => Math.abs(q.x - L.x) < (q.w + L.w) / 2 + m && Math.abs(q.y - L.y) < (q.h + L.h) / 2 + m);
-      for (let i = 0, q; i < 40 && (q = hits()); i++) L.y = L.y >= q.y ? q.y + (q.h + L.h) / 2 + m + 0.5 : q.y - (q.h + L.h) / 2 - m - 0.5;
-      placed.push(L);
+    if (L.callout && !L.dragged) {
+      // Its own direction first, then the other seven compass points, nearest first:
+      // the first spot that's on the page and clear of the plan and other callouts.
+      const base = Math.atan2(L.dir[1], L.dir[0]);
+      const dirs = [L.dir, ...[1, -1, 2, -2, 3, -3, 4].map(n => [Math.cos(base + n * Math.PI / 4), Math.sin(base + n * Math.PI / 4)])];
+      let chosen = null;
+      for (const [ux, uy] of dirs) {
+        [L.x, L.y] = L.at(ux, uy);
+        if (onPage(L) && !rects.some(r => clash(L, r)) && !placed.some(q => clash(L, q))) { chosen = [L.x, L.y]; break; }
+      }
+      if (chosen) [L.x, L.y] = chosen;
+      else {
+        // Nowhere clear: its own direction, nudged off any callout it lands on.
+        [L.x, L.y] = L.at(...L.dir);
+        const hits = () => placed.find(q => clash(L, q));
+        for (let i = 0, q; i < 40 && (q = hits()); i++) L.y = L.y >= q.y ? q.y + (q.h + L.h) / 2 + m + 0.5 : q.y - (q.h + L.h) / 2 - m - 0.5;
+      }
     }
+    if (L.callout) placed.push(L);
     out.push({ a, L });
   }
   return out;
@@ -1511,10 +1533,15 @@ function labelBlock(a, T, o, g) {
   const dl = Math.hypot(dx, dy);
   if (o.calloutSide) { dx = dx < 0 ? -1 : 1; dy = 0; }          // beside the plan, at the area's height
   else if (dl < 1) { dx = 0.6; dy = -0.8; } else { dx /= dl; dy /= dl; }
-  const reach = Math.abs(dx) * (b.x1 - b.x0) / 2 + Math.abs(dy) * (b.y1 - b.y0) / 2;
-  const gap = 9 * (o.k || 1) + Math.abs(dx) * w / 2 + Math.abs(dy) * h / 2;
   const off = a.labelOffset || [0, 0], z = o.zoom || 1;
-  return { lines, w, h, x: ax + dx * (reach + gap) + off[0] * z, y: ay + dy * (reach + gap) - off[1] * z, callout: true, anchor: [ax, ay] };
+  // Out from the area in direction (ux, uy): just clear of its edge, then the user's drag.
+  const at = (ux, uy) => {
+    const reach = Math.abs(ux) * (b.x1 - b.x0) / 2 + Math.abs(uy) * (b.y1 - b.y0) / 2;
+    const gap = 9 * (o.k || 1) + Math.abs(ux) * w / 2 + Math.abs(uy) * h / 2;
+    return [ax + ux * (reach + gap) + off[0] * z, ay + uy * (reach + gap) - off[1] * z];
+  };
+  const [x, y] = at(dx, dy);
+  return { lines, w, h, x, y, callout: true, anchor: [ax, ay], dir: [dx, dy], at, dragged: !!(off[0] || off[1]) };
 }
 function labelSvg(L, o, hatched) {
   const k = o.k || 1, out = [];
@@ -2173,7 +2200,7 @@ function exportSvg() {
   const pts = allPoints(false);
   if (!pts.length) return null;
   exportNotes = [];
-  const withTable = $("exTable").checked, sc = exportScale(), m = minTextPt(), k = m / 10;
+  const bottom = $("exBottom").value, withTable = bottom === "table", sc = exportScale(), m = minTextPt(), k = m / 10;
   const [pw, ph] = paperInches(), W = pw * PT, Hpage = ph * PT;
   const pad = 1.2 * m, drawPad = 3 * m;
   const b = bbox(pts), bw = Math.max(b.x1 - b.x0, 1e-3), bh = Math.max(b.y1 - b.y0, 1e-3);
@@ -2230,9 +2257,14 @@ function exportSvg() {
   const leftH = titleSz * 1.1 + (site ? subSz * 1.5 : 0), rightH = rightLines.length * rightSz * 1.35 + m * 1.35;
   const titleH = (stacked ? leftH + m * 1.6 : Math.max(leftH, rightH)) + m * 0.9;
   const rowH = 1.7 * m, tl = tableLayout(rows, m, W - 2 * pad);
-  const tableH = rows.length ? rowH * (tl.lines + 1) + m * 1.2 : 0;
-  // Page notes along the foot of the page ("not to scale", "for illustration only").
-  const notes = notesOf(), footH = Math.max(notes.length * m * 1.35 + m * 0.8, m * 1.6);   // always room for the version line
+  // Under the plan: the full table, or just the totals as a wrapped strip.
+  const strip = bottom === "totals" ? wrapItems(totalsItems(t), W - 2 * pad, m) : [];
+  const tableH = rows.length ? rowH * (tl.lines + 1) + m * 1.2 : strip.length ? strip.length * m * 1.5 + m * 1.1 : 0;
+  // Page notes along the foot of the page ("not to scale", "for illustration only"),
+  // run together as one paragraph, leaving room for the version at the right.
+  const verW = textWidth(`JKS Sketch ${APP_VERSION}`, m) + m;
+  const notes = wrapWords(notesOf().join(" "), W - 2 * pad - verW, m);
+  const footH = Math.max(notes.length * m * 1.35 + m * 0.8, m * 1.6);   // always room for the version line
   // The drawing: fitted into what's left of the page, or at the set scale.
   let zoom, Wout = W, Hout = Hpage, drawH;
   if (sc) {
@@ -2254,7 +2286,8 @@ function exportSvg() {
   let o, body;
   const draft = (z, side) => {
     v.zoom = z;
-    o = { grid: false, underlay: false, dims: $("showDims").checked, live: false, noSel: true, k, minText: m, fitDims: true, calloutSide: side };
+    o = { grid: false, underlay: false, dims: $("showDims").checked, live: false, noSel: true, k, minText: m, fitDims: true, calloutSide: side,
+      bounds: { w: Wout, h: drawH, edge: m * 0.6 } };
     body = scene(v, Wout, drawH, o);
     const edge = m * 0.6;
     return !o.cb || (o.cb.x0 >= edge && o.cb.x1 <= Wout - edge && o.cb.y0 >= edge && o.cb.y1 <= drawH - edge);
@@ -2263,14 +2296,13 @@ function exportSvg() {
   // full fit; otherwise search, with callouts around the plan and beside it,
   // and keep whichever lets the plan be bigger.
   if (!draft(zoom, false) && !sc) {
-    const best = side => {
-      let lo = zoom * 0.2, hi = zoom;
-      if (draft(zoom, side)) return zoom;
-      for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (draft(mid, side)) lo = mid; else hi = mid; }
-      return lo;
-    };
-    const zr = best(false), zs = best(true);
-    draft(Math.max(zr, zs), zs > zr);
+    // Whether callouts fit isn't steady as the plan shrinks (labels drop out of
+    // their areas into new callouts), so step down from the full size in small
+    // steps and take the first size that works, either way of placing them.
+    let pick = null;
+    for (let z = zoom * 0.97; z >= zoom * 0.2 && !pick; z *= 0.97)
+      for (const side of [false, true]) if (draft(z, side)) { pick = [z, side]; break; }
+    draft(...(pick || [zoom * 0.2, false]));
   }
   if (o.droppedDims) exportNotes.push(`⚠ ${o.droppedDims} dimension(s) were too long for their walls at ${fmtNum(m, 1)} pt and were left off. Use bigger paper or landscape, or hide neighbouring dimensions.`);
   const F = `font-family="Arial, Helvetica, sans-serif"`;
@@ -2302,9 +2334,70 @@ function exportSvg() {
       if (tl.subRows && r[6]) { y += rowH; s += `<text x="${(pad + m).toFixed(1)}" y="${y.toFixed(1)}" font-size="${m}" ${F} fill="#4b5563">${esc(r[6])}</text>`; }
     }
   }
+  if (strip.length) {
+    let y = titleH + drawH + m * 0.4;
+    s += `<line x1="${pad}" y1="${y.toFixed(1)}" x2="${Wout - pad}" y2="${y.toFixed(1)}" stroke="#9ca3af"/>`;
+    for (const line of strip) {
+      y += m * 1.5;
+      // Each figure: its name, then its value in bold; figures separated by a light bar.
+      s += `<text x="${pad}" y="${y.toFixed(1)}" font-size="${m}" ${F} fill="#111827">` + line.map((it, i) =>
+        (i ? `<tspan fill="#9ca3af">  |  </tspan>` : "") + (it.l ? `<tspan>${esc(it.l)} </tspan>` : "") + `<tspan font-weight="bold">${esc(it.v)}</tspan>`).join("") + `</text>`;
+    }
+  }
   notes.forEach((t, i) => s += `<text x="${pad}" y="${(Hout - footH + m * 1.2 + i * m * 1.35).toFixed(1)}" font-size="${m}" ${F} fill="#374151">${esc(t)}</text>`);
   s += `<text x="${Wout - pad}" y="${(Hout - m * 0.5).toFixed(1)}" font-size="${m}" text-anchor="end" ${F} fill="#9ca3af">JKS Sketch ${APP_VERSION}</text>`;
   return s + "</svg>";
+}
+// The core figures for the strip under the plan, as { l: name, v: value }:
+// building area (heated when storage is split out), semi-cold and cold
+// storage, combinations whose total isn't already the building area, the level
+// shown, site area, site improvements, footprint, coverage; then the doors,
+// which start a new line ({ br: true }). Totals cover the whole property, and
+// say so on a page of several, or with one level shown.
+function totalsItems(t) {
+  const items = [], many = t.buildings.length > 1, pre = b => many ? b + " " : "";
+  if (S.pages.length > 1 || viewLevel) items.push({ l: "", v: `Totals (${[viewLevel ? "all levels" : "", S.pages.length > 1 ? "all pages" : ""].filter(Boolean).join(", ")}):` });
+  for (const b of t.buildings) {
+    if (viewLevel && b.by_level[viewLevel] !== undefined) items.push({ l: `${pre(b.building)}${viewLevel}`, v: fmtArea(b.by_level[viewLevel]) });
+    items.push({ l: `${pre(b.building)}${b.semi || b.cold ? "GBA (heated)" : "GBA"}`, v: fmtArea(b.building_area) });
+    if (b.semi) items.push({ l: `${pre(b.building)}Semi-cold storage`, v: fmtArea(b.semi) });
+    if (b.cold) items.push({ l: `${pre(b.building)}Cold storage`, v: fmtArea(b.cold) });
+  }
+  const gbas = new Set(t.buildings.map(b => Math.round(b.building_area)));
+  for (const g of groupsOf().values()) if (!gbas.has(Math.round(g.total))) items.push({ l: g.name, v: fmtArea(g.total) });
+  if (t.site) items.push({ l: "Site", v: fmtArea(t.site) });
+  for (const [l, v] of siteLines(t)) items.push({ l: l === "Building footprint" ? "Footprint" : l, v: fmtArea(v) });
+  if (t.coverage !== null) items.push({ l: "Site coverage", v: `${fmtNum(t.coverage * 100, 1)}%` });
+  for (const [b, d] of Object.entries(doorsByBuilding())) {
+    const kinds = [["DK", d.dock_doors], ["GR", d.grade_level_doors]].filter(([, list]) => list.length);
+    if (!kinds.length) continue;
+    const bySize = ([tag, list]) => { const m = new Map(); for (const o of list) m.set(openingSize(o), (m.get(openingSize(o)) || 0) + 1); return [...m].map(([sz, n]) => `${n} ${tag} ${sz}`); };
+    items.push({ br: true, l: `${pre(b)}Doors:`, v: kinds.flatMap(bySize).join(", ") });
+  }
+  return items;
+}
+// Pack strip items into lines no wider than width (text size m).
+function wrapItems(items, width, m) {
+  const lines = [], sepW = textWidth("  |  ", m), w = it => textWidth(it.l ? it.l + " " : "", m) + textWidth(it.v, m, true);
+  let cur = [], used = 0;
+  for (const it of items) {
+    const need = (cur.length ? sepW : 0) + w(it);
+    if (cur.length && (it.br || used + need > width)) { lines.push(cur); cur = []; used = 0; }
+    used += (cur.length ? sepW : 0) + w(it); cur.push(it);
+  }
+  if (cur.length) lines.push(cur);
+  return lines;
+}
+// Wrap a paragraph into lines no wider than width (text size m).
+function wrapWords(text, width, m) {
+  const out = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? line + " " + word : word;
+    if (line && textWidth(next, m) > width) { out.push(line); line = word; } else line = next;
+  }
+  if (line) out.push(line);
+  return out;
 }
 // Columns of the area table, sized to their contents at text size m within
 // the page width. If they don't fit: the "Built | ceiling | storage" details

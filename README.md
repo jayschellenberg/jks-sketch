@@ -128,9 +128,10 @@ its size, its storage class if any, and "Built 1985 | Ceiling 12' / 16'" on
 one line. When the label doesn't fit inside the area at that text size (a
 small area, or the plan scaled down to fit the page), it's drawn as a
 **callout**: a box outside the area with a leader line to a dot in it.
-Callouts don't overlap each other; on a page export the plan is made as large
-as it can be with every callout still on the page, trying callouts around the
-plan and beside it. Drag a callout to move it.
+Each callout takes the first direction (its own, then the other compass
+points) that keeps it on the page and clear of the plan and other callouts;
+on a page export the plan is made as large as it can be with every callout
+still on the page. Drag a callout to move it.
 
 **Dimensions.** Decimal places are set next to the format (0 to 0.000).
 *Dims side* under *Selected* puts an area's dimensions inside or outside its
@@ -305,6 +306,15 @@ chosen *paper* and orientation less a 0.4" margin, or *Report figure*
   symbol (REF, W, D) that would print smaller are left off.
 - *PNG* and *JPG* are the page at the chosen *dpi* (300 by default). Placed at
   their true page size, their text is at least the minimum.
+- *Under the plan* (Export menu) chooses what's printed below the drawing.
+  **Totals** (the default) is a short strip of the core figures, wrapping only
+  when needed: GBA (heated when storage is split out), semi-cold and cold
+  storage, combined totals that differ from GBA, the level shown, site area,
+  site improvements, footprint and site coverage, then the dock and grade
+  doors by size (e.g. `Doors: 1 DK 9'×10', 1 GR 12'×14'`). The per-area
+  details are already on the plan. **Full area table** prints the table
+  instead; **Nothing** leaves the space to the plan. The page notes run
+  together as one paragraph.
 - *Print* (and Save as PDF) makes one sheet per page. SVG, PNG and JPG are of
   the page being shown.
 - *Export ▸ Copy page to clipboard* (Ctrl+Shift+C) copies the page as a
