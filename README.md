@@ -263,6 +263,17 @@ the way the camera faced. Markers number themselves 1, 2, 3… (change a number
 under *Selected*), print at the minimum text size, and are listed with their
 compass facing in `areas.json` as `photos`.
 
+**New job.** *File ▸ New* starts clean: an empty sketch and every setting
+back to its starting value (Next area: Building 1 / Main / Main floor /
+heated; doors and windows; view and units; underlay; export: Letter,
+portrait, fit, 12 pt, 300 dpi, Totals). Kept: your saved area-library
+default, auto-fit, and anything copied, so it can be pasted into the new job.
+
+**Typing.** After clicking the start corner, just type: the click never takes
+the cursor out of the command box, and with Draw on, typing anywhere goes to
+it. A length waiting for its arrow shows on the plan beside the corner
+(`50  → ← ↑ ↓`).
+
 **Recover.** Besides the current sketch, the browser keeps the last dozen
 sketches you worked on. *File ▸ Recover…* lists them (file, site, areas, last change)
 and reopens one. It's a safety net for a sketch replaced before it was saved;

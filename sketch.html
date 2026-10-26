@@ -1859,6 +1859,14 @@ function liveSvg(T) {
     const [px, py] = T(pen[0], pen[1]);
     out.push(`<path d="M${px - 7} ${py}H${px + 7}M${px} ${py - 7}V${py + 7}" stroke="#2563eb" stroke-width="1.5"/>`);
   }
+  // A length typed but not yet given a direction: show it beside the corner it
+  // will start from, with the arrows to press, so it's clear it was received.
+  const toks = cmd.value.trim().split(/\s+/), waiting = toks[toks.length - 1];
+  if (cmd.value.trim() && parseLen(waiting) > 0) {
+    const [qx, qy] = T(...(draw ? lastPt() : pen)), t = `${waiting}  → ← ↑ ↓`;
+    out.push(`<rect x="${qx + 10}" y="${qy - 30}" width="${textWidth(t, 13) + 12}" height="22" rx="4" fill="#eff6ff" stroke="#2563eb"/>` +
+      `<text x="${qx + 16}" y="${qy - 14}" font-size="13" font-weight="bold" fill="#1d4ed8" font-family="Arial">${esc(t)}</text>`);
+  }
   // The typed-but-not-confirmed walls: drawn like real walls, with their lengths,
   // a little lighter until Enter confirms them.
   if (ghost.length > 1) {
@@ -2662,6 +2670,19 @@ document.addEventListener("keydown", e => {
   if (e.key === "F1") { e.preventDefault(); return showHelp($("help").hidden); }
   const inField = e.target !== cmd && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (inField) return;
+  // With Draw on and the cursor not in the command box (say, after clicking a
+  // button), typing still goes there: characters are added to it, and Enter,
+  // arrows, Backspace and A act as they do in it.
+  if (e.target !== cmd && tool === "draw" && !e.ctrlKey && !e.metaKey && !e.altKey && $("help").hidden) {
+    if (e.key.length === 1 && /[0-9.'"\-\/~@*=<>a-zA-Z ]/.test(e.key) && !(e.key.toLowerCase() === "a" && !cmd.value)) {
+      e.preventDefault(); cmd.focus(); cmd.value += e.key; cmd.dispatchEvent(new Event("input")); return;
+    }
+    if (["Enter", "Backspace", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "a", "A"].includes(e.key) && (cmd.value || draw || e.key.toLowerCase() === "a")) {
+      e.preventDefault(); cmd.focus();
+      cmd.dispatchEvent(new KeyboardEvent("keydown", { key: e.key, shiftKey: e.shiftKey, bubbles: true, cancelable: true }));
+      return;
+    }
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); return e.shiftKey ? redo() : undo(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); return redo(); }
   if (e.key === "Escape") {
@@ -2801,6 +2822,12 @@ svg.addEventListener("wheel", e => {
 svg.addEventListener("mousedown", e => {
   const r = svg.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, w = s2w(sx, sy);
   if (e.button !== 0) { drag = { kind: "pan", sx, sy, cx: view.cx, cy: view.cy }; svg.classList.add("pan"); return; }
+  // Some browsers move the keyboard focus off the command box when the plan is
+  // clicked, so typed lengths went nowhere: keep the focus where it is (closing
+  // any panel field being edited first, so its change is kept).
+  const ae = document.activeElement;
+  if (ae && ae !== cmd && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) ae.blur();
+  e.preventDefault();
   if (tool === "draw") {
     let p = snapPoint(w).pt;
     if (!draw) { pen = p; startDraw(p); status("Start point set — type walls (e.g. R40 D28 L40 C) or click corners."); }
@@ -3209,11 +3236,28 @@ $("autoFit").onchange = () => {
 };
 $("showDims").onchange = render;
 $("dimFmt").onchange = () => { render(); renderPanel(); };
+// New starts a job clean: an empty sketch, and every setting back to its
+// starting value (Next area, doors/windows, view, underlay, export). Kept: the
+// saved area-library default, auto-fit, and anything copied (to paste into the
+// new job).
+function resetSettings() {
+  const set = (id, v) => { const el = $(id); if (el.type === "checkbox") el.checked = v; else el.value = v; };
+  for (const [id, v] of [["nBuilding", "Building 1"], ["nLevel", "Main"], ["nCat", "main"], ["nGroup", ""], ["nStorage", ""],
+    ["snap", "1"], ["nLabel", ""], ["oKind", "door"], ["units", "ft"], ["dimFmt", "dec"], ["dimDec", "1"], ["showDims", true],
+    ["exPaper", "letter"], ["exOrient", "portrait"], ["exScale", ""], ["exMinPt", "12"], ["exDpi", "300"], ["exBottom", "totals"],
+    ["uOpacity", "40"], ["uRot", "0"]]) set(id, v);
+  $("oWidth").value = openingDefault("door"); $("oHeight").value = openingHeightDefault("door");
+  underlay = null; curSym = "stairs"; $("dwsBox").open = false; calcOpen.clear(); activeVertex = null; measureStart = null;
+  cmd.value = ""; ghost = []; ghostWalls = [];
+}
 $("bNew").onclick = () => {
   if (S.areas.length && !confirm("Start a new sketch? Unsaved work is lost (Undo can bring it back).")) return;
   pushHistory();
-  const keepUnits = S.units; S = emptySketch(); S.units = keepUnits; setCats(defaultCats());
-  draw = null; setSel(null); pen = [0, 0]; viewLevel = ""; ensurePages(); syncInfoFields(); commit(); fit();
+  S = emptySketch(); setCats(defaultCats());
+  draw = null; setSel(null); pen = [0, 0]; viewLevel = ""; curPage = "p1";
+  resetSettings(); ensurePages(); syncInfoFields(); setTool("draw"); commit(); fit();
+  status("New sketch: everything reset. Fill in the Sketch box, click a starting corner and type a wall (e.g. 50 then →, Enter).", "ok");
+  cmd.focus();
 };
 $("units").onchange = () => {
   const to = $("units").value; if (to === S.units) return;
