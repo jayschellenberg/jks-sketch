@@ -210,7 +210,7 @@ you click on one that's already placed (clicking elsewhere places a new one).
 | File | What it is |
 |---|---|
 | `Sketch.sketch.json` (`<file no.> Sketch…` with a file number) | the editable drawing (with underlay). Reopen with *Open* |
-| `Sketch.svg` / `.png` / `.pdf` (Print → Save as PDF) | the plan: title block, north arrow, dimensions, labels, optional area table |
+| `Sketch-20261029.svg` / `.png` / `.pdf` (Print → Save as PDF), dated the day it's made | the plan: title block, north arrow, dimensions, labels, optional area table |
 | `Sketch areas.json` | every closed area: name, building, level, category, counts-toward-building-area, area in **both** sq ft and m², perimeter; per-building totals by level and category; site area |
 
 **Separate or combined.** Each area reports its own size. Give adjoining areas

@@ -2626,6 +2626,11 @@ function baseName() {
   const f = (S.info.file || "").trim().replace(/[\\/:*?"<>|]+/g, "-");
   return f ? f + " Sketch" : "Sketch";
 }
+// Printed and image files also carry the day they were made: "Sketch-20261029".
+function datedName() {
+  const d = new Date(), two = n => String(n).padStart(2, "0");
+  return `${baseName()}-${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}`;
+}
 // Edge/Chrome let you choose the folder (the job's dropzone); others download.
 async function saveFile(name, blob, desc, mime, ext) {
   if (window.showSaveFilePicker) {
@@ -3438,7 +3443,7 @@ $("bClearU").onclick = () => { underlay = null; if (tool === "calib" || tool ===
 const fileSafe = t => t.replace(/[\\/:*?"<>|]+/g, "-").trim();
 function exportName() {
   const i = S.pages.findIndex(p => p.id === curPage);
-  return baseName() + (S.pages.length > 1 ? ` p${i + 1} ${fileSafe(S.pages[i].name)}` : "") + (viewLevel ? " " + fileSafe(viewLevel) : "");
+  return datedName() + (S.pages.length > 1 ? ` p${i + 1} ${fileSafe(S.pages[i].name)}` : "") + (viewLevel ? " " + fileSafe(viewLevel) : "");
 }
 $("bSvg").onclick = () => {
   if (!needAreas()) return;
@@ -3490,7 +3495,7 @@ $("bPrint").onclick = () => {
   $("printArea").innerHTML = sheets.map(x => `<div class="sheet">${x.svg}</div>`).join("");
   // Save as PDF names the file after the page title.
   const title = document.title;
-  document.title = baseName();
+  document.title = datedName();
   window.print();
   document.title = title;
 };
