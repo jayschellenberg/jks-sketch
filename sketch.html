@@ -2356,8 +2356,10 @@ function exportSvg() {
   // Callouts sit outside their areas, so they can reach past the plan: when
   // fitting to the page, shrink the plan until they're inside the drawing space.
   let o, body;
-  const draft = (z, side) => {
-    v.zoom = z;
+  // (sx, sy) slides the plan off centre, in page units, to make room for callouts.
+  const cx0 = v.cx, cy0 = v.cy;
+  const draft = (z, side, sx = 0, sy = 0) => {
+    v.zoom = z; v.cx = cx0 - sx / z; v.cy = cy0 + sy / z;
     o = { grid: false, underlay: false, dims: $("showDims").checked, live: false, noSel: true, k, minText: m, fitDims: true, calloutSide: side,
       bounds: { w: Wout, h: drawH, edge: m * 0.6 },
       // The page's north arrow is drawn over the top right of the drawing space.
@@ -2373,14 +2375,25 @@ function exportSvg() {
   if (draft(zoom, false) < 2 && !sc) {
     // Whether callouts fit isn't steady as the plan shrinks (labels drop out of
     // their areas into new callouts), so step down from the full size in small
-    // steps and take the first size that works, either way of placing them.
-    // Failing that, the largest size at which they're at least on the page.
+    // steps and take the first size that works, either way of placing them, with
+    // the plan centred or slid within the room it leaves on the page (a tall plan
+    // on a portrait page has its callouts beside it, so sliding it over can save
+    // shrinking it). Failing that, the largest size at which they're at least on the page.
+    const slides = z => {
+      const fx = Math.max(0, (Wout - 2 * drawPad - bw * z) / 2), fy = Math.max(0, (drawH - 2 * drawPad - bh * z) / 2);
+      const steps = f => f < 1 ? [0] : [0, f / 2, -f / 2, f, -f];
+      return steps(fx).flatMap(x => steps(fy).map(y => [x, y]));
+    };
     let pick = null, loose = draft(zoom, false) ? [zoom, false] : null;
-    for (let z = zoom * 0.97; z >= zoom * 0.2 && !pick; z *= 0.97)
+    for (let z = zoom; z >= zoom * 0.2 && !pick; z *= 0.97)
       for (const side of [false, true]) {
-        const r = draft(z, side);
-        if (r === 2) { pick = [z, side]; break; }
-        if (r === 1 && !loose) loose = [z, side];
+        for (const [sx, sy] of slides(z)) {
+          if (z === zoom && !side && !sx && !sy) continue;   // tried above
+          const r = draft(z, side, sx, sy);
+          if (r === 2) { pick = [z, side, sx, sy]; break; }
+          if (r === 1 && !loose) loose = [z, side, sx, sy];
+        }
+        if (pick) break;
       }
     draft(...(pick || loose || [zoom * 0.2, false]));
   }
