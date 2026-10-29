@@ -27,8 +27,9 @@ and in `areas.json` (`generator`), so a shared copy can be told apart. It's
 
 ## Workflow
 
-1. **Sketch box** (right panel): title (defaults to Schedule B's "Layout of
-   Subject Improvements"), site name, address, file number, preparer, date.
+1. **Sketch box** (right panel): title (defaults to "Sketch of Subject Improvements (For
+   Illustration)"), site name, address, file number, preparer, date (the date is
+   kept in the file and areas.json, not printed).
    Each exported page is headed with the site name, or the address when there
    is no site name.
    *Notes* are printed at the foot of every page, one line each. By default:
@@ -208,9 +209,9 @@ you click on one that's already placed (clicking elsewhere places a new one).
 
 | File | What it is |
 |---|---|
-| `<file no.> sketch.sketch.json` | the editable drawing (with underlay). Reopen with *Open* |
-| `<file no.> sketch.svg` / `.png` | the plan: title block, north arrow, dimensions, labels, optional area table |
-| `<file no.> sketch areas.json` | every closed area: name, building, level, category, counts-toward-building-area, area in **both** sq ft and m², perimeter; per-building totals by level and category; site area |
+| `Sketch.sketch.json` (`<file no.> Sketch…` with a file number) | the editable drawing (with underlay). Reopen with *Open* |
+| `Sketch.svg` / `.png` / `.pdf` (Print → Save as PDF) | the plan: title block, north arrow, dimensions, labels, optional area table |
+| `Sketch areas.json` | every closed area: name, building, level, category, counts-toward-building-area, area in **both** sq ft and m², perimeter; per-building totals by level and category; site area |
 
 **Separate or combined.** Each area reports its own size. Give adjoining areas
 the same *Combine as* name (e.g. `GLA`) and the plan shows one combined total,
@@ -310,7 +311,7 @@ chosen *paper* and orientation less a 0.4" margin, or *Report figure*
   the title all scale up from it. On screen the sketch text uses the same
   proportions (nothing under 12 px).
 - Pages default to **portrait**. On a narrow page the title shrinks to fit
-  beside the file / date lines (or those go under it), and the area table
+  beside the file / preparer lines (or those go under it), and the area table
   sizes its columns to the page: if they still don't fit, the Built / ceiling
   / type details go on a line under each area, then a Building / level
   column that's the same on every row moves into the Area heading.

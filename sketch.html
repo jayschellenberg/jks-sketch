@@ -2323,9 +2323,10 @@ function exportSvg() {
   const title = (info.title || "Sketch") + (multi ? ` — ${S.pages[pIdx].name}` : "") + (viewLevel ? ` — ${viewLevel}` : "");
   const site = [info.site, info.address].filter(Boolean).join(" — ");
   const note = `${sc ? sc.text : "Not to scale"} · dimensions in ${S.units === "m" ? "metres" : "feet"}`;
-  const rightLines = [info.file ? "File " + info.file : "", [info.preparer, info.date].filter(Boolean).join(" · "),
+  // The sketch date stays in the file and areas.json; the printed sheet leaves it off.
+  const rightLines = [info.file ? "File " + info.file : "", info.preparer || "",
     multi ? `Page ${pIdx + 1} of ${S.pages.length}` : ""].filter(Boolean);
-  // Title and site line on the left, file / date / page / scale on the right.
+  // Title and site line on the left, file / preparer / page / scale on the right.
   // On a narrow (portrait) page the title shrinks to fit beside them, never
   // below 1.3× the minimum; if it still can't, the right-hand lines go under it.
   const rightSz = 1.1 * m, rightW = Math.max(textWidth(note, m), ...rightLines.map(l => textWidth(l, rightSz)), 0);
@@ -2620,9 +2621,10 @@ function areasJson() {
     site_coverage_pct: t.coverage === null ? null : Math.round(t.coverage * 1000) / 10,
   };
 }
+// Saved and exported files are named "Sketch" ("123 Sketch" with a file number).
 function baseName() {
   const f = (S.info.file || "").trim().replace(/[\\/:*?"<>|]+/g, "-");
-  return f ? f + " sketch" : "sketch";
+  return f ? f + " Sketch" : "Sketch";
 }
 // Edge/Chrome let you choose the folder (the job's dropzone); others download.
 async function saveFile(name, blob, desc, mime, ext) {
@@ -3486,7 +3488,11 @@ $("bPrint").onclick = () => {
   showExportNotes(sheets.flatMap(x => x.notes.map(n => (S.pages.length > 1 ? `${x.page.name}: ` : "") + n)),
     `Printing ${sheets.length} page${sheets.length > 1 ? "s" : ""}.`);
   $("printArea").innerHTML = sheets.map(x => `<div class="sheet">${x.svg}</div>`).join("");
+  // Save as PDF names the file after the page title.
+  const title = document.title;
+  document.title = baseName();
   window.print();
+  document.title = title;
 };
 for (const id of ["exScale", "exPaper", "exOrient", "exMinPt"]) $(id).addEventListener("change", () => {
   if (S.areas.length && exportSvg()) showExportNotes(exportNotes, `Page ${fmtNum(paperInches()[0], 2)} × ${fmtNum(paperInches()[1], 2)} in, text at least ${fmtNum(minTextPt(), 1)} pt.`);
