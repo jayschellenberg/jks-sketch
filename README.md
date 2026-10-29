@@ -124,7 +124,7 @@ shows: code, name, size. *Interior / fence line* is for lines that are drawn
 but never measured; an open line (`E`) becomes one unless it's a lot line.
 
 **Area labels and callouts.** Each area's label is its name (always bold),
-its size, its storage class if any, and "Built 1985 | Ceiling 12' / 16'" on
+its size, its type if unheated or covered, and "Built 1985 | Ceiling 12' / 16'" on
 one line. When the label doesn't fit inside the area at that text size (a
 small area, or the plan scaled down to fit the page), it's drawn as a
 **callout**: a box outside the area with a leader line to a dot in it.
@@ -287,14 +287,16 @@ and on a page's table the totals say "(all pages)". Each sheet is headed with
 the title and page name, the site name or address, and "Page 2 of 3". Copy on
 one page and paste on another to start from the same outline, in place.
 
-**Cold and semi-cold storage.** Set *Storage* (under *Next area* before
-drawing, or under *Selected*) to *Semi-cold storage* or *Cold storage*. Those
-sections are hatched on the plan (single hatch semi-cold, cross-hatch cold),
-always labelled with their class, and totalled apart from the main building
-area, which then reads "building area (heated)". `areas.json` gives each area's
-`storage` (`heated`, `semi_cold`, `cold`) and per building
-`semi_cold_storage_area`, `cold_storage_area` and `total_including_storage`;
-`building_area` is the heated GBA.
+**Heated, unheated and covered.** Set *Type* (under *Next area* before
+drawing, or under *Selected*) to *Heated* (the default), *Unheated* or
+*Covered*. Unheated and covered sections are hatched on the plan (single hatch
+unheated, cross-hatch covered), always labelled with their type, and totalled
+apart from the main building area, which then reads "building area (heated)".
+`areas.json` gives each area's `type` (`heated`, `unheated`, `covered`) and per
+building `unheated_area`, `covered_area` and
+`total_including_unheated_and_covered`; `building_area` is the heated GBA.
+Older sketches with semi-cold or cold storage open with those sections as
+unheated.
 
 **Pages out: fit, text size, PDF, JPG.** Every export is a real page: the
 chosen *paper* and orientation less a 0.4" margin, or *Report figure*
@@ -310,7 +312,7 @@ chosen *paper* and orientation less a 0.4" margin, or *Report figure*
 - Pages default to **portrait**. On a narrow page the title shrinks to fit
   beside the file / date lines (or those go under it), and the area table
   sizes its columns to the page: if they still don't fit, the Built / ceiling
-  / storage details go on a line under each area, then a Building / level
+  / type details go on a line under each area, then a Building / level
   column that's the same on every row moves into the Area heading.
   A dimension too long for its wall at that size is shortened (a curve drops
   its rise) or left off, and the status bar says how many. Letters inside a
@@ -319,8 +321,8 @@ chosen *paper* and orientation less a 0.4" margin, or *Report figure*
   their true page size, their text is at least the minimum.
 - *Under the plan* (Export menu) chooses what's printed below the drawing.
   **Totals** (the default) is a short strip of the core figures, wrapping only
-  when needed: GBA (heated when storage is split out), semi-cold and cold
-  storage, combined totals that differ from GBA, the level shown, site area,
+  when needed: GBA (heated when unheated or covered space is split out), the
+  unheated and covered areas, combined totals that differ from GBA, the level shown, site area,
   site improvements, footprint and site coverage, then the dock and grade
   doors by size (e.g. `Doors: 1 DK 9'×10', 1 GR 12'×14'`). The per-area
   details are already on the plan. **Full area table** prints the table
