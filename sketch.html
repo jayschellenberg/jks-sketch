@@ -254,7 +254,6 @@
   <div class="row"><label for="iAddress">Address</label><input id="iAddress" type="text"></div>
   <div class="row"><label for="iCity">City</label><input id="iCity" type="text"></div>
   <div class="row"><label for="iFile">File no.</label><input id="iFile" type="text"></div>
-  <div class="row"><label for="iDate">Date</label><input id="iDate" type="text"></div>
   <div class="row"><label for="iNotes">Notes</label><textarea id="iNotes" rows="2" style="font-family:inherit;min-height:40px"
     title="Printed at the foot of every page, one line each. Clear it to leave the notes off."></textarea></div>
 
@@ -563,15 +562,15 @@ const newUid = () => Date.now().toString(36) + Math.random().toString(36).slice(
 // Printed at the foot of every exported page unless the sketch clears them.
 const DEFAULT_NOTES = "Note: Placement of improvements on site is not to scale.\nFor illustration only.";
 // The Sketch panel's fields, each an input "i" + Name (iTitle, iAddress…).
-const INFO_FIELDS = ["title", "address", "city", "file", "date"];
+const INFO_FIELDS = ["title", "address", "city", "file"];
 function notesOf() {
   return (S.info.notes === undefined ? DEFAULT_NOTES : S.info.notes).split("\n").map(t => t.trim()).filter(Boolean);
 }
 function emptySketch() {
   return {
     format: "jks-sketch", version: 1, units: "ft",
-    info: { title: "Sketch of Subject Improvements (For Illustration)", address: "", city: "", file: "",
-            date: new Date().toISOString().slice(0, 10), notes: DEFAULT_NOTES },
+    // No date: printed and exported files are named with the day they're made.
+    info: { title: "Sketch of Subject Improvements (For Illustration)", address: "", city: "", file: "", notes: DEFAULT_NOTES },
     // Pages: separate drawing sheets (site plan, each building, each floor…).
     // Every area, label and symbol belongs to one; totals cover all of them.
     pages: [{ id: "p1", name: "Page 1" }],
@@ -2586,7 +2585,6 @@ function areasJson() {
     generated: new Date().toISOString(),
     drawn_in: S.units === "m" ? "metres" : "feet",
     title: S.info.title, property: S.info.address, city: S.info.city || "", file_number: S.info.file,
-    sketch_date: S.info.date,
     areas: S.areas.filter(isCalc).map(a => ({
       name: a.name, building: a.building, level: a.level,
       category: a.category, category_label: CAT[a.category].label,
@@ -2630,12 +2628,12 @@ function areasJson() {
     site_coverage_pct: t.coverage === null ? null : Math.round(t.coverage * 1000) / 10,
   };
 }
-// Saved and exported files are named "Sketch" ("123 Sketch" with a file number).
+// Saved and exported files are named "Sketch" ("Sketch-26109175" with a file number).
 function baseName() {
   const f = (S.info.file || "").trim().replace(/[\\/:*?"<>|]+/g, "-");
-  return f ? f + " Sketch" : "Sketch";
+  return f ? "Sketch-" + f : "Sketch";
 }
-// Printed and image files also carry the day they were made: "Sketch-20261029".
+// Printed and image files also carry the day they were made: "Sketch-26109175-20261029".
 function datedName() {
   const d = new Date(), two = n => String(n).padStart(2, "0");
   return `${baseName()}-${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}`;

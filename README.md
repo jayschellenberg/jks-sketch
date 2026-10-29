@@ -28,8 +28,9 @@ and in `areas.json` (`generator`), so a shared copy can be told apart. It's
 ## Workflow
 
 1. **Sketch box** (right panel): title (defaults to "Sketch of Subject Improvements (For
-   Illustration)"), address, city, file number, date (the date is kept in the
-   file and areas.json, not printed).
+   Illustration)"), address, city, file number. There's no date field: printed
+   and exported files are named with the day they're made, and `areas.json`
+   records when it was generated.
    Each exported page is headed with the address and city.
    *Notes* are printed at the foot of every page, one line each. By default:
    "Note: Placement of improvements on site is not to scale." and "For
@@ -208,7 +209,7 @@ you click on one that's already placed (clicking elsewhere places a new one).
 
 | File | What it is |
 |---|---|
-| `Sketch.sketch.json` (`<file no.> Sketch…` with a file number) | the editable drawing (with underlay). Reopen with *Open* |
+| `Sketch.sketch.json` (`Sketch-<file no.>…` with a file number, e.g. `Sketch-26109175-20261027.pdf`) | the editable drawing (with underlay). Reopen with *Open* |
 | `Sketch-20261029.svg` / `.png` / `.pdf` (Print → Save as PDF), dated the day it's made | the plan: title block, north arrow, dimensions, labels, optional area table |
 | `Sketch areas.json` | every closed area: name, building, level, category, counts-toward-building-area, area in **both** sq ft and m², perimeter; per-building totals by level and category; site area |
 
