@@ -197,7 +197,8 @@
         <select id="dimDec" title="Decimal places on dimensions"><option value="0">0</option><option value="1" selected>0.0</option><option value="2">0.00</option><option value="3">0.000</option></select></span></div>
       <label title="Show dimensions. With Select, click one to hide or show it"><input id="showDims" type="checkbox" checked> show dimensions</label>
       <div class="prow"><span>North points</span><label title="Turn the page's north arrow to true north: degrees counter-clockwise from straight up. Rotating the whole page turns it too.">
-        <input id="northRot" type="number" step="5" value="0" style="width:60px">°</label></div>
+        <input id="northRot" type="number" step="15" value="0" style="width:60px">°</label>
+        <span><button id="northL" title="Turn the north arrow 15° counter-clockwise (Ctrl-click 5°)">⟲ 15°</button><button id="northR" title="Turn the north arrow 15° clockwise (Ctrl-click 5°)">⟳ 15°</button></span></div>
       <div class="phead">Area labels show</div>
       <label title="Area code from the library (GLA1, GAR…)"><input id="shCode" type="checkbox"> code</label>
       <label><input id="shName" type="checkbox" checked> name</label>
@@ -267,8 +268,8 @@
 
   <h3>Selected</h3>
   <div id="selRotate" class="row" hidden><label>Rotate</label><span class="btns" style="margin:0">
-    <button id="rotL15" title="15° counter-clockwise ( [ )">⟲ 15°</button><button id="rotR15" title="15° clockwise ( ] )">⟳ 15°</button>
-    <button id="rotL5" title="5° counter-clockwise (Shift+[ )">⟲ 5°</button><button id="rotR5" title="5° clockwise (Shift+] )">⟳ 5°</button></span></div>
+    <button id="rotL15" title="15° counter-clockwise ( [ ); Ctrl-click 5°">⟲ 15°</button><button id="rotR15" title="15° clockwise ( ] ); Ctrl-click 5°">⟳ 15°</button>
+    <button id="rotL5" title="5° counter-clockwise (Ctrl+[ or Shift+[ )">⟲ 5°</button><button id="rotR5" title="5° clockwise (Ctrl+] or Shift+] )">⟳ 5°</button></span></div>
   <div id="selNone" class="hint">Nothing selected. Use the Select tool, or click a row in the table below.</div>
   <div id="selArea" hidden>
     <div class="row"><label for="sName">Name</label><input id="sName" type="text"></div>
@@ -305,7 +306,7 @@
     <div class="row"><label for="lText">Text</label><input id="lText" type="text" list="labelList"></div>
     <div class="row"><label for="lSize">Size</label><input id="lSize" type="number" min="12" max="48" value="12"></div>
     <div class="row"><label for="lBold">Bold</label><span><input id="lBold" type="checkbox"></span></div>
-    <div class="row"><label for="lRot">Angle °</label><input id="lRot" type="number" step="5" value="0" title="Counter-clockwise; R turns it 15° clockwise (Shift+R back); [ and ] turn it 15° (Shift 5°)"></div>
+    <div class="row"><label for="lRot">Angle °</label><input id="lRot" type="number" step="5" value="0" title="Counter-clockwise; R turns it 15° clockwise (Shift+R back); [ and ] turn it 15°; hold Ctrl for 5°"></div>
     <div class="btns"><button id="lDel">Delete label</button></div>
   </div>
   <div id="selDimline" hidden>
@@ -365,8 +366,9 @@
     <tr><td><b>Delete</b> (empty line)</td><td>Delete the selection.</td></tr>
     <tr><td><b>Ctrl+A</b> / <b>Ctrl+C</b> / <b>Ctrl+V</b></td><td>Select everything shown / copy / paste. With one level shown, paste puts the copy on that level in place: copy the main floor, show Upper, paste.</td></tr>
     <tr><td>Select tool</td><td>Click to select; <b>Shift+click</b> adds; drag on empty space draws a fence around what to select. Click a dimension to hide it (or show it again).</td></tr>
-    <tr><td><b>R</b> (Shift+R)</td><td>With a label selected: turn it 15° clockwise (counter-clockwise).</td></tr>
-    <tr><td><b>[</b> <b>]</b> (Shift: 5°)</td><td>Turn the selection 15° counter-clockwise / clockwise (5° with Shift); with nothing selected, the whole page and its north arrow.</td></tr>
+    <tr><td><b>R</b> (Shift+R; Ctrl: 5°)</td><td>Turn the selection 15° clockwise (counter-clockwise); hold Ctrl for 5°. With Draw on, labels and symbols only.
+      The page's corner north arrow turns with the ⟲ / ⟳ 15° buttons under View → North points (Ctrl-click: 5°). Ctrl-click any rotate button for 5°.</td></tr>
+    <tr><td><b>[</b> <b>]</b> (Ctrl or Shift: 5°)</td><td>Turn the selection 15° counter-clockwise / clockwise (5° with Shift); with nothing selected, the whole page and its north arrow.</td></tr>
     <tr><td>Moving things</td><td>With Select, drag a door or window along its wall or onto another; drag a symbol, label or area anywhere. Double-click a label to change its text.</td></tr>
     <tr><td><b>Ctrl+Shift+C</b></td><td>Copy this page as a picture, to paste into Word, Outlook or an email.</td></tr>
     <tr><td>Editing on the plan</td><td>Select one area and its corners show handles: <b>drag a corner</b> to move it (Shift keeps it square);
@@ -1340,6 +1342,8 @@ function scene(v, Wd, Ht, o) {
   // o.k scales every piece of text (and its offsets): 1 on screen; on a page export
   // it is set so the smallest text prints at the chosen minimum size.
   o.k = o.k || 1;
+  // The screen's corner north arrow: callouts keep clear of it.
+  if (o.live && !visSymbols().some(x => x.type === "north")) o.keepOut = [northBox(Wd - 26, 34, 0.95)];
   for (const a of order) out.push(areaSvg(a, T, o, !o.noSel && isPicked("area", a.id)));
   // Openings after every area, so a neighbour's wall drawn later can't close the gap.
   for (const a of order) for (const op of a.openings || []) out.push(openingSvg(a, op, T, !o.noSel && isPicked("area", a.id), o.k));
@@ -1463,9 +1467,30 @@ function areaSvg(a, T, o, isSel) {
 // or down, until it's clear. Returns [{ a, L }] in drawing order.
 function layoutLabels(areas, T, o) {
   const placed = [], out = [], m = 3 * (o.k || 1);
-  // What a callout mustn't cover: the plan's areas (not the site) and other callouts.
+  // What a callout mustn't cover: the plan's areas (not the site), the free
+  // labels and symbols, the north arrow (o.keepOut) and other callouts.
   const rects = areas.filter(x => x.closed && x.category !== "site" && x.category !== "line")
     .map(x => { const q = outline(x).map(p => T(p[0], p[1])), b = bbox(q); return { x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, w: b.x1 - b.x0, h: b.y1 - b.y0 }; });
+  for (const l of visLabels()) {
+    const [sx, sy] = T(l.x, l.y), fs = o.minText ? Math.max(l.size || 12, 10) * o.k : Math.max(l.size || 12, 12);
+    const w = textWidth(l.text, fs, l.bold), h = fs * 1.2, r = (l.rot || 0) * Math.PI / 180, c = Math.abs(Math.cos(r)), sn = Math.abs(Math.sin(r));
+    rects.push({ x: sx, y: sy, w: w * c + h * sn, h: w * sn + h * c });
+  }
+  for (const sy of visSymbols()) {
+    const b = bbox(symCorners(sy).map(p => T(p[0], p[1]))), min = 24 * (o.k || 1);
+    rects.push({ x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, w: Math.max(b.x1 - b.x0, min), h: Math.max(b.y1 - b.y0, min) });
+  }
+  rects.push(...(o.keepOut || []));
+  // A callout's leader mustn't cross another area (its box, with a margin),
+  // a label, a symbol, another callout or another leader.
+  const owners = areas.filter(x => x.closed && x.category !== "site" && x.category !== "line");
+  const corners = r => { const w = r.w / 2 + m, h = r.h / 2 + m; return [[r.x - w, r.y - h], [r.x + w, r.y - h], [r.x + w, r.y + h], [r.x - w, r.y + h]]; };
+  const segHitsBox = (A, B, r) => { const q = corners(r); return pointInPoly(A, q) || q.some((c, i) => segsTouch(A, B, c, q[(i + 1) % 4])); };
+  const leaderClear = (a, L) => {
+    const A = L.anchor, B = leaderEnd(L, o.k || 1);
+    return !rects.some((r, i) => owners[i] !== a && segHitsBox(A, B, r)) &&
+      !placed.some(q => segHitsBox(A, B, q) || segsTouch(A, B, q.anchor, leaderEnd(q, o.k || 1)) || segHitsBox(q.anchor, leaderEnd(q, o.k || 1), L));
+  };
   const clash = (L, r) => Math.abs(r.x - L.x) < (r.w + L.w) / 2 + m && Math.abs(r.y - L.y) < (r.h + L.h) / 2 + m;
   const onPage = L => !o.bounds || (L.x - L.w / 2 >= o.bounds.edge && L.x + L.w / 2 <= o.bounds.w - o.bounds.edge &&
     L.y - L.h / 2 >= o.bounds.edge && L.y + L.h / 2 <= o.bounds.h - o.bounds.edge);
@@ -1474,17 +1499,22 @@ function layoutLabels(areas, T, o) {
     const L = labelBlock(a, T, o, isCalc(a) ? groupOf(a, o.groups || groupsOf()) : null);
     if (!L) continue;
     if (L.callout && !L.dragged) {
-      // Its own direction first, then the other seven compass points, nearest first:
-      // the first spot that's on the page and clear of the plan and other callouts.
+      // Its own direction first, then the other seven compass points, nearest first,
+      // then the same a little further out: the first spot that's on the page and
+      // clear of the plan, labels, symbols and other callouts.
       const base = Math.atan2(L.dir[1], L.dir[0]);
       const dirs = [L.dir, ...[1, -1, 2, -2, 3, -3, 4].map(n => [Math.cos(base + n * Math.PI / 4), Math.sin(base + n * Math.PI / 4)])];
       let chosen = null;
-      for (const [ux, uy] of dirs) {
-        [L.x, L.y] = L.at(ux, uy);
-        if (onPage(L) && !rects.some(r => clash(L, r)) && !placed.some(q => clash(L, q))) { chosen = [L.x, L.y]; break; }
+      for (const more of [0, 1.5 * L.h, 3 * L.h]) {
+        for (const [ux, uy] of dirs) {
+          [L.x, L.y] = L.at(ux, uy, more);
+          if (onPage(L) && !rects.some(r => clash(L, r)) && !placed.some(q => clash(L, q)) && leaderClear(a, L)) { chosen = [L.x, L.y]; break; }
+        }
+        if (chosen) break;
       }
       if (chosen) [L.x, L.y] = chosen;
       else {
+        o.crowded = (o.crowded || 0) + 1;   // a page export shrinks the plan to make room
         // Nowhere clear: its own direction, nudged off any callout it lands on.
         [L.x, L.y] = L.at(...L.dir);
         const hits = () => placed.find(q => clash(L, q));
@@ -1545,13 +1575,18 @@ function labelBlock(a, T, o, g) {
   else if (dl < 1) { dx = 0.6; dy = -0.8; } else { dx /= dl; dy /= dl; }
   const off = a.labelOffset || [0, 0], z = o.zoom || 1;
   // Out from the area in direction (ux, uy): just clear of its edge, then the user's drag.
-  const at = (ux, uy) => {
+  const at = (ux, uy, more = 0) => {
     const reach = Math.abs(ux) * (b.x1 - b.x0) / 2 + Math.abs(uy) * (b.y1 - b.y0) / 2;
-    const gap = 9 * (o.k || 1) + Math.abs(ux) * w / 2 + Math.abs(uy) * h / 2;
+    const gap = 9 * (o.k || 1) + Math.abs(ux) * w / 2 + Math.abs(uy) * h / 2 + more;
     return [ax + ux * (reach + gap) + off[0] * z, ay + uy * (reach + gap) - off[1] * z];
   };
   const [x, y] = at(dx, dy);
   return { lines, w, h, x, y, callout: true, anchor: [ax, ay], dir: [dx, dy], at, dragged: !!(off[0] || off[1]) };
+}
+// Where a callout's leader meets its box: the box's nearest point to the anchor.
+function leaderEnd(L, k = 1) {
+  const x0 = L.x - L.w / 2 - 3 * k, y0 = L.y - L.h / 2 - 2 * k, [ax, ay] = L.anchor;
+  return [Math.max(x0, Math.min(x0 + L.w + 6 * k, ax)), Math.max(y0, Math.min(y0 + L.h + 4 * k, ay))];
 }
 function labelSvg(L, o, hatched) {
   const k = o.k || 1, out = [];
@@ -1559,7 +1594,7 @@ function labelSvg(L, o, hatched) {
   const halo = hatched || L.callout ? ` stroke="#fff" stroke-width="${3 * k}" stroke-linejoin="round" paint-order="stroke"` : "";
   const x0 = L.x - L.w / 2 - 3 * k, y0 = L.y - L.h / 2 - 2 * k, bw = L.w + 6 * k, bh = L.h + 4 * k;
   if (L.callout) {
-    const [ax, ay] = L.anchor, px = Math.max(x0, Math.min(x0 + bw, ax)), py = Math.max(y0, Math.min(y0 + bh, ay));
+    const [ax, ay] = L.anchor, [px, py] = leaderEnd(L, k);
     out.push(`<path d="M${px.toFixed(1)} ${py.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}" stroke="#6b7280" stroke-width="0.9" fill="none"/>` +
       `<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="${(2.2 * k).toFixed(1)}" fill="#6b7280"/>` +
       `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="#fff" fill-opacity=".9" stroke="#d1d5db" stroke-width="0.6"/>`);
@@ -2324,22 +2359,30 @@ function exportSvg() {
   const draft = (z, side) => {
     v.zoom = z;
     o = { grid: false, underlay: false, dims: $("showDims").checked, live: false, noSel: true, k, minText: m, fitDims: true, calloutSide: side,
-      bounds: { w: Wout, h: drawH, edge: m * 0.6 } };
+      bounds: { w: Wout, h: drawH, edge: m * 0.6 },
+      // The page's north arrow is drawn over the top right of the drawing space.
+      keepOut: visSymbols().some(x => x.type === "north") ? [] : [northBox(Wout - pad - 1.6 * m, 2.6 * m, k)] };
     body = scene(v, Wout, drawH, o);
     const edge = m * 0.6;
-    return !o.cb || (o.cb.x0 >= edge && o.cb.x1 <= Wout - edge && o.cb.y0 >= edge && o.cb.y1 <= drawH - edge);
+    const onPage = !o.cb || (o.cb.x0 >= edge && o.cb.x1 <= Wout - edge && o.cb.y0 >= edge && o.cb.y1 <= drawH - edge);
+    return onPage ? (o.crowded ? 1 : 2) : 0;   // 2: every callout clear; 1: on the page but some overlap
   };
-  // The largest plan at which every callout still lands on the page: try the
-  // full fit; otherwise search, with callouts around the plan and beside it,
-  // and keep whichever lets the plan be bigger.
-  if (!draft(zoom, false) && !sc) {
+  // The largest plan at which every callout lands on the page clear of the plan,
+  // labels and other callouts: try the full fit; otherwise search, with callouts
+  // around the plan and beside it, and keep whichever lets the plan be bigger.
+  if (draft(zoom, false) < 2 && !sc) {
     // Whether callouts fit isn't steady as the plan shrinks (labels drop out of
     // their areas into new callouts), so step down from the full size in small
     // steps and take the first size that works, either way of placing them.
-    let pick = null;
+    // Failing that, the largest size at which they're at least on the page.
+    let pick = null, loose = draft(zoom, false) ? [zoom, false] : null;
     for (let z = zoom * 0.97; z >= zoom * 0.2 && !pick; z *= 0.97)
-      for (const side of [false, true]) if (draft(z, side)) { pick = [z, side]; break; }
-    draft(...(pick || [zoom * 0.2, false]));
+      for (const side of [false, true]) {
+        const r = draft(z, side);
+        if (r === 2) { pick = [z, side]; break; }
+        if (r === 1 && !loose) loose = [z, side];
+      }
+    draft(...(pick || loose || [zoom * 0.2, false]));
   }
   if (o.droppedDims) exportNotes.push(`⚠ ${o.droppedDims} dimension(s) were too long for their walls at ${fmtNum(m, 1)} pt and were left off. Use bigger paper or landscape, or hide neighbouring dimensions.`);
   const F = `font-family="Arial, Helvetica, sans-serif"`;
@@ -2464,6 +2507,10 @@ function tableLayout(rows, m, span) {
   for (const i of on) { x[i] = i === 4 ? at + width(i) : at; at += width(i) + gap + extra; }
   const lines = rows.length + (subRows ? data.filter(r => r[6]).length : 0);
   return { x, head, subRows, lines };
+}
+// The space northArrow(x, y, k) takes, as a { x, y, w, h } box centred on it.
+function northBox(x, y, k = 1) {
+  return S.northRot ? { x, y, w: 60 * k, h: 60 * k } : { x, y: y + 4 * k, w: 30 * k, h: 56 * k };   // turned: what it can sweep
 }
 function northArrow(x, y, k = 1) {
   return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${k}) rotate(${-(S.northRot || 0)})"><path d="M0 -22L8 10L0 4L-8 10Z" fill="#111827"/>` +
@@ -2705,10 +2752,12 @@ document.addEventListener("keydown", e => {
   if (e.key === "F1") { e.preventDefault(); return showHelp($("help").hidden); }
   const inField = e.target !== cmd && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (inField) return;
-  // R turns a selected label 15° clockwise (Shift+R counter-clockwise), even with Draw on.
-  if (sel && sel.kind === "label" && e.code === "KeyR" && !draw && !cmd.value && !e.ctrlKey && !e.metaKey && !e.altKey) {
+  // R turns the selection 15° clockwise (Shift+R counter-clockwise; hold Ctrl
+  // for 5°, which also keeps Ctrl+R from reloading the page). With Draw on, only
+  // a label or symbol: R there starts a wall, and a new area is selected.
+  if (sel && e.code === "KeyR" && !draw && !cmd.value && !e.altKey && (tool !== "draw" || sel.kind === "label" || sel.kind === "symbol")) {
     e.preventDefault();
-    return rotateBy(e.shiftKey ? 15 : -15);
+    return rotateBy((e.shiftKey ? 1 : -1) * (e.ctrlKey || e.metaKey ? 5 : 15));
   }
   // With Draw on and the cursor not in the command box (say, after clicking a
   // button), typing still goes there: characters are added to it, and Enter,
@@ -2740,10 +2789,10 @@ document.addEventListener("keydown", e => {
   if (mod && key === "c") { if (copySel()) e.preventDefault(); return; }
   if (mod && key === "v") { e.preventDefault(); return pasteClip(); }
   if (mod && key === "a") { e.preventDefault(); return selectAllShown(); }
-  // [ and ] turn the selection (or the whole page) 15°; with Shift, 5°.
-  if (!mod && !draw && (e.code === "BracketLeft" || e.code === "BracketRight")) {
+  // [ and ] turn the selection (or the whole page) 15°; with Ctrl or Shift, 5°.
+  if (!draw && (e.code === "BracketLeft" || e.code === "BracketRight")) {
     e.preventDefault();
-    return rotateBy((e.code === "BracketLeft" ? 1 : -1) * (e.shiftKey ? 5 : 15));
+    return rotateBy((e.code === "BracketLeft" ? 1 : -1) * (e.shiftKey || mod ? 5 : 15));
   }
   if (activeVertex && (e.key === "Delete" || e.key === "Backspace")) {
     const a = S.areas.find(x => x.id === activeVertex.id);
@@ -3150,6 +3199,8 @@ onSelEdit("lSize", (l, el) => l.size = Math.max(12, Math.min(48, +el.value || 12
 onSelEdit("lBold", (l, el) => { l.bold = el.checked; delete el.dataset.dirty; }, "change");
 onSelEdit("lRot", (l, el) => { const v = parseFloat(el.value); if (isFinite(v)) l.rot = v; });
 $("northRot").addEventListener("change", () => { const v = parseFloat($("northRot").value); pushHistory(); S.northRot = isFinite(v) ? ((v % 360) + 360) % 360 : 0; commit(); });
+for (const [id, d] of [["northL", 15], ["northR", -15]])
+  $(id).onclick = e => { const t = e.ctrlKey || e.metaKey ? d / 3 : d; pushHistory(); S.northRot = (((S.northRot || 0) + t) % 360 + 360) % 360; commit(); };
 $("sApply").addEventListener("click", () => {
   const a = findSel(); if (!a) return;
   const r = parseLine($("sVec").value);
@@ -3489,7 +3540,8 @@ $("bRotate").onclick = () => {
   const deg = parseFloat(prompt("Rotate by how many degrees? (positive = counter-clockwise, e.g. 90, -12.5)", "90"));
   rotateBy(deg);
 };
-for (const [id, d] of [["rotL15", 15], ["rotR15", -15], ["rotL5", 5], ["rotR5", -5]]) $(id).onclick = () => rotateBy(d);
+// Ctrl-click turns 5° instead of 15°.
+for (const [id, d] of [["rotL15", 15], ["rotR15", -15], ["rotL5", 5], ["rotR5", -5]]) $(id).onclick = e => rotateBy(e.ctrlKey || e.metaKey ? Math.sign(d) * 5 : d);
 
 // ---------------------------------------------------------------- recover
 $("bRecover").onclick = () => {
