@@ -305,7 +305,7 @@
     <div class="row"><label for="lText">Text</label><input id="lText" type="text" list="labelList"></div>
     <div class="row"><label for="lSize">Size</label><input id="lSize" type="number" min="12" max="48" value="12"></div>
     <div class="row"><label for="lBold">Bold</label><span><input id="lBold" type="checkbox"></span></div>
-    <div class="row"><label for="lRot">Angle °</label><input id="lRot" type="number" step="5" value="0" title="Counter-clockwise; [ and ] turn it 15° (Shift 5°)"></div>
+    <div class="row"><label for="lRot">Angle °</label><input id="lRot" type="number" step="5" value="0" title="Counter-clockwise; R turns it 15° clockwise (Shift+R back); [ and ] turn it 15° (Shift 5°)"></div>
     <div class="btns"><button id="lDel">Delete label</button></div>
   </div>
   <div id="selDimline" hidden>
@@ -365,6 +365,7 @@
     <tr><td><b>Delete</b> (empty line)</td><td>Delete the selection.</td></tr>
     <tr><td><b>Ctrl+A</b> / <b>Ctrl+C</b> / <b>Ctrl+V</b></td><td>Select everything shown / copy / paste. With one level shown, paste puts the copy on that level in place: copy the main floor, show Upper, paste.</td></tr>
     <tr><td>Select tool</td><td>Click to select; <b>Shift+click</b> adds; drag on empty space draws a fence around what to select. Click a dimension to hide it (or show it again).</td></tr>
+    <tr><td><b>R</b> (Shift+R)</td><td>With a label selected: turn it 15° clockwise (counter-clockwise).</td></tr>
     <tr><td><b>[</b> <b>]</b> (Shift: 5°)</td><td>Turn the selection 15° counter-clockwise / clockwise (5° with Shift); with nothing selected, the whole page and its north arrow.</td></tr>
     <tr><td>Moving things</td><td>With Select, drag a door or window along its wall or onto another; drag a symbol, label or area anywhere. Double-click a label to change its text.</td></tr>
     <tr><td><b>Ctrl+Shift+C</b></td><td>Copy this page as a picture, to paste into Word, Outlook or an email.</td></tr>
@@ -2704,6 +2705,11 @@ document.addEventListener("keydown", e => {
   if (e.key === "F1") { e.preventDefault(); return showHelp($("help").hidden); }
   const inField = e.target !== cmd && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (inField) return;
+  // R turns a selected label 15° clockwise (Shift+R counter-clockwise), even with Draw on.
+  if (sel && sel.kind === "label" && e.code === "KeyR" && !draw && !cmd.value && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    return rotateBy(e.shiftKey ? 15 : -15);
+  }
   // With Draw on and the cursor not in the command box (say, after clicking a
   // button), typing still goes there: characters are added to it, and Enter,
   // arrows, Backspace and A act as they do in it.
