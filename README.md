@@ -28,10 +28,9 @@ and in `areas.json` (`generator`), so a shared copy can be told apart. It's
 ## Workflow
 
 1. **Sketch box** (right panel): title (defaults to "Sketch of Subject Improvements (For
-   Illustration)"), site name, address, file number, preparer, date (the date is
-   kept in the file and areas.json, not printed).
-   Each exported page is headed with the site name, or the address when there
-   is no site name.
+   Illustration)"), address, city, file number, date (the date is kept in the
+   file and areas.json, not printed).
+   Each exported page is headed with the address and city.
    *Notes* are printed at the foot of every page, one line each. By default:
    "Note: Placement of improvements on site is not to scale." and "For
    illustration only." Edit them per sketch, or clear the box to leave them off.
@@ -43,7 +42,7 @@ and in `areas.json` (`generator`), so a shared copy can be told apart. It's
    category sets the fill colour, the code, whether the area counts toward
    building area and its default factor. You can change all of it afterwards.
 4. **Draw**: click the starting corner. It snaps to an existing corner first, then
-   to the grid. Then type the walls into the command line and press Enter.
+   to the grid (*Grid snap* in the View menu, 1 by default). Then type the walls into the command line and press Enter.
    For an addition, start on the building, type only the new walls and finish
    with `CW` (below).
 5. **Fix**: with *Select*, click an area. Its corners show handles: drag one
@@ -190,8 +189,8 @@ it. They copy, rotate with the sketch and sit on the level being shown, like
 labels.
 
 **Labels (free text).** The *Label* tool places text anywhere: type it in
-*Label text* in the panel first (it offers common room names and the ones
-you've used) and each click places it, or leave that empty and type when asked.
+the box that appears beside the *Label* button (it offers common room names
+and the ones you've used) and each click places it, or leave that empty and type when asked.
 Double-click a label to change its text; under *Selected* set its size, bold
 and angle (or turn it with `[` `]`).
 
@@ -285,7 +284,7 @@ plan, each building, each floor), renames one, or deletes one (Undo brings it
 back). Each page is its
 own drawing; totals, the area calculations and `areas.json` cover every page,
 and on a page's table the totals say "(all pages)". Each sheet is headed with
-the title and page name, the site name or address, and "Page 2 of 3". Copy on
+the title and page name, the address and city, and "Page 2 of 3". Copy on
 one page and paste on another to start from the same outline, in place.
 
 **Heated, unheated and covered.** Set *Type* (under *Next area* before
@@ -311,7 +310,7 @@ chosen *paper* and orientation less a 0.4" margin, or *Report figure*
   the title all scale up from it. On screen the sketch text uses the same
   proportions (nothing under 12 px).
 - Pages default to **portrait**. On a narrow page the title shrinks to fit
-  beside the file / preparer lines (or those go under it), and the area table
+  beside the file / page lines (or those go under it), and the area table
   sizes its columns to the page: if they still don't fit, the Built / ceiling
   / type details go on a line under each area, then a Building / level
   column that's the same on every row moves into the Area heading.

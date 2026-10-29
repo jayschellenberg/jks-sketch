@@ -78,6 +78,11 @@
   .row input[type=text], .row select, .row input[type=number] { width: 100%; padding: 2px 4px; }
   textarea { width: 100%; min-height: 54px; font-family: Consolas, monospace; font-size: 12px; }
   .btns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  [hidden] { display: none !important; }
+  /* The four rotate buttons share one row. */
+  #selRotate { display: flex; align-items: center; gap: 3px; margin: 4px 0; white-space: nowrap; }
+  #selRotate > span { margin-right: 4px; }
+  #selRotate button { padding: 2px 6px; }
   .hint { color: var(--muted); font-size: 12px; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; }
   th, td { text-align: left; padding: 2px 4px; border-bottom: 1px solid #eee; }
@@ -162,6 +167,8 @@
     <button id="tDraw" class="on" title="Draw: click sets the start point, typed vectors draw the walls">Draw</button>
     <button id="tSelect" title="Select: click an area to edit; drag to move it">Select</button>
     <button id="tLabel" title="Label: click to place free text">Label</button>
+    <input id="nLabel" type="text" list="labelList" placeholder="label text, e.g. Office" style="width:150px" hidden
+      title="Text each click places. Leave blank to be asked each time.">
     <button id="tOpening" title="Door / window: click a wall to place the opening chosen in the panel">Door/Window</button>
     <button id="tSymbol" title="Symbol: click to place the symbol chosen in the panel">Symbol</button>
     <button id="tMeasure" title="Measure: click two points for a dimension line (setbacks, spacing); Shift keeps it square">Measure</button>
@@ -192,6 +199,8 @@
   </div>
   <div class="grp">
     <details class="menu"><summary>View</summary><div class="pop">
+      <div class="prow"><span>Grid snap</span><label title="Clicks round to this spacing (and the arrow keys move by it); 0 = off. Clicks near a corner still land on it.">
+        <input id="snap" type="number" step="0.1" min="0" value="1" style="width:60px"></label></div>
       <div class="prow"><span>Units</span><select id="units" title="Units"><option value="ft">feet</option><option value="m">metres</option></select></div>
       <div class="prow"><span>Dimensions</span><span><select id="dimFmt" title="Dimension format"><option value="dec">40.5'</option><option value="ftin">40'6"</option></select>
         <select id="dimDec" title="Decimal places on dimensions"><option value="0">0</option><option value="1" selected>0.0</option><option value="2">0.00</option><option value="3">0.000</option></select></span></div>
@@ -242,10 +251,9 @@
 <aside>
   <h3>Sketch</h3>
   <div class="row"><label for="iTitle">Title</label><input id="iTitle" type="text"></div>
-  <div class="row"><label for="iSite">Site name</label><input id="iSite" type="text" placeholder="e.g. Smith Cold Storage"></div>
   <div class="row"><label for="iAddress">Address</label><input id="iAddress" type="text"></div>
+  <div class="row"><label for="iCity">City</label><input id="iCity" type="text"></div>
   <div class="row"><label for="iFile">File no.</label><input id="iFile" type="text"></div>
-  <div class="row"><label for="iPreparer">Prepared by</label><input id="iPreparer" type="text"></div>
   <div class="row"><label for="iDate">Date</label><input id="iDate" type="text"></div>
   <div class="row"><label for="iNotes">Notes</label><textarea id="iNotes" rows="2" style="font-family:inherit;min-height:40px"
     title="Printed at the foot of every page, one line each. Clear it to leave the notes off."></textarea></div>
@@ -256,8 +264,6 @@
   <div class="row"><label for="nCat">Category</label><select id="nCat"></select></div>
   <div class="row"><label for="nGroup">Combine as</label><input id="nGroup" type="text" list="groupList" placeholder="blank = separate"></div>
   <div class="row"><label for="nStorage">Type</label><select id="nStorage" title="Unheated and covered areas are totalled apart from the main (heated) GBA"></select></div>
-  <div class="row"><label for="snap">Grid snap</label><input id="snap" type="number" step="0.1" min="0" value="1"></div>
-  <div class="row"><label for="nLabel">Label text</label><input id="nLabel" type="text" list="labelList" placeholder="for the Label tool, e.g. Office"></div>
 
   <details id="dwsBox"><summary><h3>Doors, windows, symbols</h3></summary>
   <div class="row"><label for="oKind">Opening</label><span style="display:flex;gap:4px"><select id="oKind" style="flex:1"></select>
@@ -267,9 +273,9 @@
   </details>
 
   <h3>Selected</h3>
-  <div id="selRotate" class="row" hidden><label>Rotate</label><span class="btns" style="margin:0">
+  <div id="selRotate" hidden><span>Rotate</span>
     <button id="rotL15" title="15° counter-clockwise ( [ ); Ctrl-click 5°">⟲ 15°</button><button id="rotR15" title="15° clockwise ( ] ); Ctrl-click 5°">⟳ 15°</button>
-    <button id="rotL5" title="5° counter-clockwise (Ctrl+[ or Shift+[ )">⟲ 5°</button><button id="rotR5" title="5° clockwise (Ctrl+] or Shift+] )">⟳ 5°</button></span></div>
+    <button id="rotL5" title="5° counter-clockwise (Ctrl+[ or Shift+[ )">⟲ 5°</button><button id="rotR5" title="5° clockwise (Ctrl+] or Shift+] )">⟳ 5°</button></div>
   <div id="selNone" class="hint">Nothing selected. Use the Select tool, or click a row in the table below.</div>
   <div id="selArea" hidden>
     <div class="row"><label for="sName">Name</label><input id="sName" type="text"></div>
@@ -400,7 +406,7 @@
   <h3>Pages</h3>
   <p><b>Page</b> in the toolbar picks the page; its <b>⋯</b> menu adds a page (site plan, each building, each floor), renames or deletes one.
   Each page is its own drawing; totals and <code>areas.json</code> cover every page. Each sheet is headed with the title and page
-  name, the <b>Site name</b> (or the address when there is none) and "Page 2 of 3". Copy on one page and paste on another to
+  name, the address and city, and "Page 2 of 3". Copy on one page and paste on another to
   start from the same outline, in place.</p>
   <h3>Heated, unheated and covered</h3>
   <p>Set <b>Type</b> (under Next area before drawing, or under Selected) to <b>Heated</b> (the default), <b>Unheated</b> or <b>Covered</b>.
@@ -418,7 +424,8 @@
   <b>Underlay</b> and <b>Export</b> (formats and page setup). <b>Show</b> picks one level: the others are hidden, new areas go on that level, and SVG/PNG/Print export just that level.
   <b>Library…</b> edits the area categories (code, label, counts toward building area, default factor, fill). <b>Label</b> chooses
   what each area's label shows. <b>Interior / fence line</b> is a category for lines that aren't measured; an open line (<code>E</code>)
-  becomes one. <b>Label text</b> in the panel lets the Label tool place a room name with one click. <b>Rotate…</b> turns the selection,
+  becomes one. With the <b>Label</b> tool on, a text box beside its button lets each click place that text. <b>Grid snap</b> (View menu)
+  is the spacing clicks round to and the arrow keys move by. <b>Rotate…</b> turns the selection,
   or the whole sketch, by any angle.</p>
   <h3>Separate or combined square footage</h3>
   <p>Every area shows its own size. To report adjoining areas as one total, give them the same <b>Combine as</b> name
@@ -555,13 +562,15 @@ const newUid = () => Date.now().toString(36) + Math.random().toString(36).slice(
 // ---------------------------------------------------------------- state
 // Printed at the foot of every exported page unless the sketch clears them.
 const DEFAULT_NOTES = "Note: Placement of improvements on site is not to scale.\nFor illustration only.";
+// The Sketch panel's fields, each an input "i" + Name (iTitle, iAddress…).
+const INFO_FIELDS = ["title", "address", "city", "file", "date"];
 function notesOf() {
   return (S.info.notes === undefined ? DEFAULT_NOTES : S.info.notes).split("\n").map(t => t.trim()).filter(Boolean);
 }
 function emptySketch() {
   return {
     format: "jks-sketch", version: 1, units: "ft",
-    info: { title: "Sketch of Subject Improvements (For Illustration)", site: "", address: "", file: "", preparer: "",
+    info: { title: "Sketch of Subject Improvements (For Illustration)", address: "", city: "", file: "",
             date: new Date().toISOString().slice(0, 10), notes: DEFAULT_NOTES },
     // Pages: separate drawing sheets (site plan, each building, each floor…).
     // Every area, label and symbol belongs to one; totals cover all of them.
@@ -1153,7 +1162,7 @@ function recentList() { try { return JSON.parse(localStorage.getItem(RECENT_KEY)
 // This sketch's entry in the recent list, newest first. Empty sketches aren't kept.
 function keepRecent() {
   if (!S.areas.length && !S.labels.length && !S.symbols.length) return;
-  const label = [S.info.file ? "File " + S.info.file : "", S.info.site, S.info.address].filter(Boolean).join(" · ") || S.info.title || "Untitled sketch";
+  const label = [S.info.file ? "File " + S.info.file : "", S.info.address, S.info.city].filter(Boolean).join(" · ") || S.info.title || "Untitled sketch";
   let list = [{ uid: S.uid, saved: Date.now(), label, areas: S.areas.length, data: snapshot() }, ...recentList().filter(r => r.uid !== S.uid)].slice(0, RECENT_MAX);
   // Browser storage is limited: drop the oldest until the list fits.
   while (list.length) {
@@ -2236,7 +2245,7 @@ function renderCalcs() {
   $("calcs").innerHTML = h + "</div>";
 }
 function syncInfoFields() {
-  for (const k of ["title", "site", "address", "file", "preparer", "date"]) $("i" + k[0].toUpperCase() + k.slice(1)).value = S.info[k] || "";
+  for (const k of INFO_FIELDS) $("i" + k[0].toUpperCase() + k.slice(1)).value = S.info[k] || "";
   if (document.activeElement !== $("iNotes")) $("iNotes").value = notesOf().join("\n");
   $("units").value = S.units;
   $("dimFmt").disabled = S.units === "m";
@@ -2321,12 +2330,12 @@ function exportSvg() {
   // Title block: title (and page / level) left, file and date right; then the site line.
   const info = S.info, pIdx = S.pages.findIndex(p => p.id === curPage), multi = S.pages.length > 1;
   const title = (info.title || "Sketch") + (multi ? ` — ${S.pages[pIdx].name}` : "") + (viewLevel ? ` — ${viewLevel}` : "");
-  const site = [info.site, info.address].filter(Boolean).join(" — ");
+  const site = [info.address, info.city].filter(Boolean).join(", ");
   const note = `${sc ? sc.text : "Not to scale"} · dimensions in ${S.units === "m" ? "metres" : "feet"}`;
   // The sketch date stays in the file and areas.json; the printed sheet leaves it off.
-  const rightLines = [info.file ? "File " + info.file : "", info.preparer || "",
+  const rightLines = [info.file ? "File " + info.file : "",
     multi ? `Page ${pIdx + 1} of ${S.pages.length}` : ""].filter(Boolean);
-  // Title and site line on the left, file / preparer / page / scale on the right.
+  // Title and address line on the left, file / page / scale on the right.
   // On a narrow (portrait) page the title shrinks to fit beside them, never
   // below 1.3× the minimum; if it still can't, the right-hand lines go under it.
   const rightSz = 1.1 * m, rightW = Math.max(textWidth(note, m), ...rightLines.map(l => textWidth(l, rightSz)), 0);
@@ -2576,8 +2585,8 @@ function areasJson() {
     format: "jks-sketch-areas", version: 1, generator: `JKS Sketch ${APP_VERSION} (${APP_DATE})`,
     generated: new Date().toISOString(),
     drawn_in: S.units === "m" ? "metres" : "feet",
-    title: S.info.title, site_name: S.info.site || "", property: S.info.address, file_number: S.info.file,
-    prepared_by: S.info.preparer, sketch_date: S.info.date,
+    title: S.info.title, property: S.info.address, city: S.info.city || "", file_number: S.info.file,
+    sketch_date: S.info.date,
     areas: S.areas.filter(isCalc).map(a => ({
       name: a.name, building: a.building, level: a.level,
       category: a.category, category_label: CAT[a.category].label,
@@ -2666,6 +2675,9 @@ function setTool(t) {
     status(`Click a wall to place a ${OPENINGS[$("oKind").value].label.toLowerCase()}, ${fmtLen(parseFloat($("oWidth").value) || 0)} wide${h > 0 ? ` × ${fmtLen(h)} high` : ""}.`);
   }
   if (t === "symbol") status(`Click to place: ${SYM[curSym].label}. Rotate and resize it under Selected.`);
+  // The Label tool's text box sits beside its button, only while the tool is on.
+  $("nLabel").hidden = t !== "label";
+  if (t === "label") { $("nLabel").focus(); $("nLabel").select(); }
   svg.classList.toggle("select", t === "select" || t === "moveU");
   if (t === "calib") status(underlay ? "Calibrate: click one end of a wall of known length on the image." : "Load an underlay image first.", underlay ? "" : "bad");
   render();
@@ -3007,7 +3019,7 @@ svg.addEventListener("mousedown", e => {
     renderPanel(); render();
   } else if (tool === "label") {
     let text = $("nLabel").value.trim();
-    if (!text) text = (prompt("Label text (or fill in Label text in the panel to place it with one click):") || "").trim();
+    if (!text) text = (prompt("Label text (or type it in the box beside the Label button to place it with one click):") || "").trim();
     if (text) {
       pushHistory();
       const p = snapPoint(w).pt, l = { id: S.nextId++, x: p[0], y: p[1], text, size: 12, level: viewLevel || undefined, page: curPage };
@@ -3333,7 +3345,7 @@ $("cExpand").onclick = () => { for (const k of calcKeys()) calcOpen.set(k, true)
 // As in Apex, Collapse all still shows every area's net figure; it folds only the detail.
 $("cCollapse").onclick = () => { for (const k of calcKeys()) calcOpen.set(k, !k.startsWith("a:")); renderCalcs(); };
 $("iNotes").addEventListener("change", () => { pushHistory(); S.info.notes = $("iNotes").value; commit(); });
-for (const k of ["title", "site", "address", "file", "preparer", "date"]) {
+for (const k of INFO_FIELDS) {
   const el = $("i" + k[0].toUpperCase() + k.slice(1));
   el.addEventListener("change", () => { pushHistory(); S.info[k] = el.value; commit(); });
 }
