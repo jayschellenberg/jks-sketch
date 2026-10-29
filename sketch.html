@@ -274,6 +274,9 @@
     <div class="row"><label for="sName">Name</label><input id="sName" type="text"></div>
     <div class="row"><label for="sBuilding">Building</label><input id="sBuilding" type="text"></div>
     <div class="row"><label for="sLevel">Level</label><input id="sLevel" type="text"></div>
+    <div class="row"><label for="sStoreys">Storeys</label><span><input id="sStoreys" type="number" min="1" step="1" style="width:56px"
+      title="Storeys with the same floor plate as drawn, for the whole building: GBA = floor plate × storeys">
+      <span class="hint">same floor plate, whole building</span></span></div>
     <div class="row"><label for="sCat">Category</label><select id="sCat"></select></div>
     <div class="row"><label for="sGroup">Combine as</label><input id="sGroup" type="text" list="groupList" placeholder="blank = its own total"></div>
     <div class="row"><label for="sInc">In bldg area</label><span><input id="sInc" type="checkbox"> counts toward building area</span></div>
@@ -401,6 +404,9 @@
   Those sections are hatched on the plan and totalled on their own, apart from the main (heated) building area, everywhere totals
   appear.</p>
   <h3>Year built and ceiling height</h3>
+  <p><b>Multi-storey buildings:</b> draw one floor plate, select any of its areas and set <b>Storeys</b> (it applies to the whole
+  building). The plan shows the floor plate; the totals strip, table and <code>areas.json</code> add the floor plate and a
+  GBA of floor plate × storeys (e.g. <i>GBA (3 storeys × same floor plate)</i>). Storage areas and footprint stay as drawn.</p>
   <p>Select an area (a section) to note its <b>Year built</b> and <b>Ceiling ht</b>: one height, or several separated by commas
   (<code>16, 24'6</code>). Tick <b>details</b> under Label to show them on the plan; they also appear in the calculations, the printed
   table and <code>areas.json</code>.</p>
@@ -561,6 +567,8 @@ function emptySketch() {
     areas: [], labels: [], symbols: [], dimlines: [], nextId: 1,
     // What an area's label shows on the plan (Apex's auto-post options).
     show: { code: false, name: true, area: true, info: true },
+    // Storeys sharing the drawn floor plate, by building: { "Building 1": 3 }.
+    storeys: {},
   };
 }
 let S = null;
@@ -1166,6 +1174,7 @@ function redo() {
 function afterLoad() {
   if (!S.uid) S.uid = newUid();
   if (!Array.isArray(S.dimlines)) S.dimlines = [];
+  if (!S.storeys || typeof S.storeys !== "object") S.storeys = {};
   setCats(S.cats || defaultCats());
   ensurePages();
   picks = picks.filter(p => listOf(p.kind).some(x => x.id === p.id));
@@ -1954,8 +1963,13 @@ const STORAGE = {
   cold: { label: "Cold storage",      short: "Cold storage" },
 };
 const storageOf = a => STORAGE[a.storage] ? a.storage || "" : "";
+// Storeys of a building that repeat its drawn floor plate (1 = as drawn).
+function storeysOf(b) { const n = Math.floor(+(S.storeys || {})[b]); return n > 1 ? n : 1; }
+// "15,000 sf (3 storeys × same floor plate)": the GBA note for a multi-storey building.
+const storeysNote = b => `${b.storeys} storeys × same floor plate`;
 // Footprint is the ground covered by buildings (base areas ticked "footprint",
-// on every page), and site coverage is footprint ÷ site area.
+// on every page), and site coverage is footprint ÷ site area. A building's
+// building_area is the floor plate as drawn; gba multiplies it by its storeys.
 function totals() {
   const bld = new Map(), siteImp = {}; let site = 0, footprint = 0;
   for (const a of S.areas) {
@@ -1976,6 +1990,7 @@ function totals() {
     const lv = a.level || "(no level)";
     t.by_level[lv] = (t.by_level[lv] || 0) + v;
   }
+  for (const t of bld.values()) { t.storeys = storeysOf(t.building); t.gba = t.building_area * t.storeys; }
   return { buildings: [...bld.values()], site, siteImp, footprint, coverage: site > EPS && footprint > 0 ? footprint / site : null };
 }
 // Footer lines shared by the panel, the calculations and the printed table.
@@ -2008,6 +2023,8 @@ function renderPanel() {
     if (document.activeElement !== $("sName")) $("sName").value = it.name;
     if (document.activeElement !== $("sBuilding")) $("sBuilding").value = it.building;
     if (document.activeElement !== $("sLevel")) $("sLevel").value = it.level;
+    if (document.activeElement !== $("sStoreys")) $("sStoreys").value = storeysOf(it.building);
+    $("sStoreys").disabled = it.category === "site" || isSiteImp(it);
     if (document.activeElement !== $("sGroup")) $("sGroup").value = it.group || "";
     $("sCat").value = it.category; $("sInc").checked = it.included; $("sDims").checked = it.dims;
     $("sDimsSide").textContent = it.dimsOut ? "Outside → inside" : "Inside → outside";
@@ -2061,7 +2078,11 @@ function renderPanel() {
     for (const lv of new Set([...Object.keys(b.by_level), ...Object.keys(lvls)]))
       h += `<tr><td colspan="2" class="hint">${esc(b.building)} — ${esc(lv)}</td><td class="n">${b.by_level[lv] !== undefined ? fmtArea(b.by_level[lv]).replace(/ .*/, "") : ""}</td>` +
         `<td class="n" title="Outside walls of this level">${lvls[lv] ? P(outerPerimeter(lvls[lv])) : ""}</td><td></td></tr>`;
-    h += `<tr class="total"><td colspan="2">${esc(b.building)} building area${b.semi || b.cold ? " (heated)" : ""}</td><td class="n">${fmtArea(b.building_area).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
+    const heated = b.semi || b.cold ? " (heated)" : "";
+    if (b.storeys > 1) {
+      h += `<tr><td colspan="2" class="hint">${esc(b.building)} floor plate${heated}</td><td class="n">${fmtArea(b.building_area).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
+      h += `<tr class="total"><td colspan="2">${esc(b.building)} GBA${heated} <span class="hint">(${storeysNote(b)})</span></td><td class="n">${fmtArea(b.gba).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
+    } else h += `<tr class="total"><td colspan="2">${esc(b.building)} building area${heated}</td><td class="n">${fmtArea(b.building_area).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
     if (b.semi) h += `<tr class="total"><td colspan="2">${esc(b.building)} semi-cold storage</td><td class="n">${fmtArea(b.semi).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
     if (b.cold) h += `<tr class="total"><td colspan="2">${esc(b.building)} cold storage</td><td class="n">${fmtArea(b.cold).replace(/ .*/, "")}</td><td></td><td></td></tr>`;
   }
@@ -2153,7 +2174,11 @@ function renderCalcs() {
   if (!h) { $("calcs").innerHTML = `<div class="hint">Closed areas appear here with their calculations.</div>`; return; }
   h += `<div id="calcSum"><div><span>Defined areas</span><span>${S.areas.filter(isCalc).length}</span></div>`;
   for (const b of t.buildings) {
-    h += `<div><span>${esc(b.building)} — building area${b.semi || b.cold ? " (heated)" : ""}</span><span>${n2(b.building_area)} ${u}</span></div>`;
+    const heated = b.semi || b.cold ? " (heated)" : "";
+    if (b.storeys > 1) {
+      h += `<div><span>${esc(b.building)} — floor plate${heated}</span><span>${n2(b.building_area)} ${u}</span></div>`;
+      h += `<div><span>${esc(b.building)} — GBA${heated}, ${storeysNote(b)}</span><span>${n2(b.gba)} ${u}</span></div>`;
+    } else h += `<div><span>${esc(b.building)} — building area${heated}</span><span>${n2(b.building_area)} ${u}</span></div>`;
     if (b.semi) h += `<div><span>${esc(b.building)} — semi-cold storage</span><span>${n2(b.semi)} ${u}</span></div>`;
     if (b.cold) h += `<div><span>${esc(b.building)} — cold storage</span><span>${n2(b.cold)} ${u}</span></div>`;
   }
@@ -2234,7 +2259,10 @@ function exportSvg() {
       if (viewLevel && bt.by_level[viewLevel] !== undefined)
         rows.push([`${bt.building} — ${viewLevel} area`, "", "", fmtArea(bt.by_level[viewLevel]), "", true]);
       const split = bt.semi || bt.cold;
-      rows.push([`${bt.building} — building area${split ? " (heated)" : ""}${scope}`, "", "", fmtArea(bt.building_area), "", true]);
+      if (bt.storeys > 1) {
+        rows.push([`${bt.building} — floor plate${split ? " (heated)" : ""}${scope}`, "", "", fmtArea(bt.building_area), "", true]);
+        rows.push([`${bt.building} — GBA${split ? " (heated)" : ""}, ${storeysNote(bt)}`, "", "", fmtArea(bt.gba), "", true]);
+      } else rows.push([`${bt.building} — building area${split ? " (heated)" : ""}${scope}`, "", "", fmtArea(bt.building_area), "", true]);
       if (bt.semi) rows.push([`${bt.building} — semi-cold storage${scope}`, "", "", fmtArea(bt.semi), "", true]);
       if (bt.cold) rows.push([`${bt.building} — cold storage${scope}`, "", "", fmtArea(bt.cold), "", true]);
     }
@@ -2367,7 +2395,11 @@ function totalsItems(t) {
   if (S.pages.length > 1 || viewLevel) items.push({ l: "", v: `Totals (${[viewLevel ? "all levels" : "", S.pages.length > 1 ? "all pages" : ""].filter(Boolean).join(", ")}):` });
   for (const b of t.buildings) {
     if (viewLevel && b.by_level[viewLevel] !== undefined) items.push({ l: `${pre(b.building)}${viewLevel}`, v: fmtArea(b.by_level[viewLevel]) });
-    items.push({ l: `${pre(b.building)}${b.semi || b.cold ? "GBA (heated)" : "GBA"}`, v: fmtArea(b.building_area) });
+    const heated = b.semi || b.cold ? " (heated)" : "";
+    if (b.storeys > 1) {
+      items.push({ l: `${pre(b.building)}Floor plate${heated}`, v: fmtArea(b.building_area) });
+      items.push({ l: `${pre(b.building)}GBA${heated} (${storeysNote(b)})`, v: fmtArea(b.gba) });
+    } else items.push({ l: `${pre(b.building)}GBA${heated}`, v: fmtArea(b.building_area) });
     if (b.semi) items.push({ l: `${pre(b.building)}Semi-cold storage`, v: fmtArea(b.semi) });
     if (b.cold) items.push({ l: `${pre(b.building)}Cold storage`, v: fmtArea(b.cold) });
   }
@@ -2497,11 +2529,13 @@ function areasJson() {
       const doors = list => ({ count: list.length, sizes: list.map(o => ({ width: len(o.width), height: o.height > 0 ? len(o.height) : null })) });
       return {
         building: b.building, building_area: both(b.building_area),
+        // building_area is one floor plate; the GBA repeats it on every storey.
+        storeys: b.storeys, gross_building_area: both(b.gba),
         by_level: Object.fromEntries(Object.entries(b.by_level).map(([k, v]) => [k, both(v)])),
         by_category: Object.fromEntries(Object.entries(b.by_category).map(([k, v]) => [k, both(v)])),
         // building_area is the main (heated) GBA; storage that counts is totalled apart.
         semi_cold_storage_area: both(b.semi), cold_storage_area: both(b.cold),
-        total_including_storage: both(b.building_area + b.semi + b.cold),
+        total_including_storage: both(b.gba + b.semi + b.cold),
         dock_doors: doors(d.dock_doors), grade_level_doors: doors(d.grade_level_doors),
         // Outside walls of each level: walls shared between its areas don't count.
         outer_perimeter_by_level: Object.fromEntries(Object.entries(areasByBuildingLevel()[b.building] || {}).map(([lv, list]) => [lv, len(outerPerimeter(list))])),
@@ -3065,6 +3099,10 @@ function onSelEdit(id, fn, evt = "input") {
 onSelEdit("sName", (a, el) => a.name = el.value);
 onSelEdit("sBuilding", (a, el) => a.building = el.value);
 onSelEdit("sLevel", (a, el) => a.level = el.value);
+onSelEdit("sStoreys", (a, el) => {
+  const n = Math.floor(+el.value);
+  if (n > 1) S.storeys[a.building] = n; else delete S.storeys[a.building];
+});
 onSelEdit("sGroup", (a, el) => a.group = el.value);
 onSelEdit("sCat", (a, el) => {
   // A name still at its default follows the category ("Main floor 2" -> "Garage").
