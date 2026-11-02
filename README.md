@@ -1,5 +1,7 @@
 # JKS Sketch
 
+Status: Active | Next: tbd | Blocked: none | Updated: 2026-11-01
+
 Re-enters a hand-drawn field sketch as a clean, dimensioned plan with computed
 areas. One self-contained file, `sketch.html`: open it in Edge or Chrome
 (double-click). No install, no server, no network. Nothing leaves the machine.
