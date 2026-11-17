@@ -1576,14 +1576,19 @@ function labelLines(a, o, g) {
   const sh = S.show || { name: true, area: true }, c = CAT[a.category], k = o.k || 1, lines = [];
   const head = [sh.code && c.code ? c.code : "", sh.name ? a.name : ""].filter(Boolean).join(" ");
   if (head) lines.push({ t: head, fs: 12 * k, bold: true, fill: "#111827" });
-  if (g) { if (a === g.leader) lines.push({ t: `${g.name}${sh.area ? " " + fmtArea(g.total) : ""}`, fs: 12 * k, bold: true, fill: "#111827" }); }
-  else if (sh.area && countOf(a) !== "display") lines.push({ t: isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), fs: 11 * k, fill: "#374151" });
+  // Every area keeps its own size; a combination's total goes on its largest member.
+  if (sh.area && countOf(a) !== "display") lines.push({ t: isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), fs: 11 * k, fill: "#374151" });
   const st = STORAGE[storageOf(a)].short;
   if (st) lines.push({ t: st, fs: 10 * k, fill: "#4b5563" });
   const details = sh.info !== false ? [a.yearBuilt ? `Built ${a.yearBuilt}` : "", (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean).join(" | ") : "";
   if (details) lines.push({ t: details, fs: 10 * k, fill: "#4b5563" });
   if (sh.shared && sharesWalls(a))
     lines.push({ t: `Perim ${fmtLen(perimeterOf(a))} · shared ${fmtLen(sharedPerimeterOf(a))}`, fs: 10 * k, fill: "#4b5563" });
+  // The combination's total (and, with perimeters shown, its outside perimeter).
+  if (g && a === g.leader) {
+    lines.push({ t: `${g.name}${sh.area ? " " + fmtArea(g.total) : ""}`, fs: 12 * k, bold: true, fill: "#111827" });
+    if (sh.shared) lines.push({ t: `${g.name} perim ${fmtLen(outerPerimeter(g.members))}`, fs: 10 * k, fill: "#4b5563" });
+  }
   return lines;
 }
 const textWidth = (t, fs, bold) => t.length * fs * (bold ? 0.6 : 0.55);   // Arial's average character width
@@ -2234,6 +2239,7 @@ function calcKeys() {
     const b = a.category === "site" || isSiteImp(a) ? "Site" : a.building || "(no building)";
     keys.push("b:" + b, "c:" + b + "|" + a.category, "a:" + a.id);
   }
+  for (const g of groupsOf().values()) keys.push("a:grp:" + g.name, ...g.members.map(a => "a:grp:" + g.name + "|" + a.id));
   return [...new Set(keys)];
 }
 function renderCalcs() {
@@ -2277,6 +2283,19 @@ function renderCalcs() {
     const bt = t.buildings.find(x => x.building === b);
     const head = b === "Site" ? `Site : ${n2(t.site)}` : `${esc(b)} : ${n2(bt ? bt.building_area : 0)} <span class="hint">bldg area</span>`;
     h += node("b:" + b, head, inner);
+  }
+  // Combined areas: the total and its outside perimeter, opening to each part
+  // with its own size, perimeter and shared walls.
+  for (const g of groupsOf().values()) {
+    const P = outerPerimeter(g.members);
+    let inner = `<div class="kv">Total area : ${n2(g.total)}</div><div class="kv">Outside perimeter : ${n2(P)}</div>`;
+    for (const a of [...g.members].sort((x, y) => x.id - y.id)) {
+      const s = sharedPerimeterOf(a);
+      inner += node("a:grp:" + g.name + "|" + a.id, `${esc(a.name)} : ${n2(netAreaOf(a))}`,
+        [["Perimeter", n2(perimeterOf(a))], ["Shared walls", n2(s)], ["Outside walls", n2(perimeterOf(a) - s)]]
+          .map(([l, v]) => `<div class="kv">${l} : ${v}</div>`).join(""), isPicked("area", a.id) ? "sel" : "", a.id);
+    }
+    h += node("a:grp:" + g.name, `${esc(g.name)} : ${n2(g.total)} <span class="hint">combined · perim ${n2(P)}</span>`, inner);
   }
   if (!h) { $("calcs").innerHTML = `<div class="hint">Closed areas appear here with their calculations.</div>`; return; }
   h += `<div id="calcSum"><div><span>Defined areas</span><span>${S.areas.filter(isCalc).length}</span></div>`;
@@ -2359,7 +2378,8 @@ function exportSvg() {
         (S.show || {}).shared && sharesWalls(a) ? `Perim ${fmtLen(perimeterOf(a))}, shared ${fmtLen(sharedPerimeterOf(a))}` : ""].filter(Boolean).join(" | ")]);
     for (const g of groupsOf().values()) {
       if (!g.members.some(visible)) continue;
-      rows.push([`${g.name} (combined)`, g.members.map(m => m.name).join(" + "), "", fmtArea(g.total), "", true]);
+      rows.push([`${g.name} (combined)`, g.members.map(m => m.name).join(" + "), "", fmtArea(g.total), "", true,
+        (S.show || {}).shared ? `Perim ${fmtLen(outerPerimeter(g.members))} (outside walls)` : ""]);
     }
     // Totals cover the whole property, so with several pages (or one level shown) they say so.
     const all = [viewLevel ? "all levels" : "", S.pages.length > 1 ? "all pages" : ""].filter(Boolean).join(", ");
@@ -2592,7 +2612,7 @@ function tableLayout(rows, m, span) {
   const x = Array(6).fill(null);
   let at = 0;
   for (const i of on) { x[i] = i === 4 ? at + width(i) : at; at += width(i) + gap + extra; }
-  const lines = rows.length + (subRows ? data.filter(r => r[6]).length : 0);
+  const lines = rows.length + (subRows ? rows.filter(r => r[6]).length : 0);
   return { x, head, subRows, lines };
 }
 // The space northArrow(x, y, k) takes, as a { x, y, w, h } box centred on it.

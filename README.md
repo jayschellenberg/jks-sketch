@@ -219,9 +219,14 @@ you click on one that's already placed (clicking elsewhere places a new one).
 | `Sketch areas.json` | every closed area: name, building, level, category, counts-toward-building-area, area in **both** sq ft and m², perimeter; per-building totals by level and category; site area |
 
 **Separate or combined.** Each area reports its own size. Give adjoining areas
-the same *Combine as* name (e.g. `GLA`) and the plan shows one combined total,
-drawn as one shape: walls between the parts (same building and level) are
-light and dashed, with no dimensions. The table and `areas.json` (`combined`)
+the same *Combine as* name (e.g. `GLA`) and the plan adds one combined total,
+on the label of its largest part, drawn as one shape: walls between the parts
+(same building and level) are light and dashed, with no dimensions. Each part
+keeps its own size on its label. With *perimeter and shared walls* ticked, the
+combined label and its table row also give the combination's outside perimeter.
+In the calculations panel each combination has its own entry ("Office :
+15,864.76 combined · perim 1,119.00") that expands to each part's size,
+perimeter, shared and outside walls. The table and `areas.json` (`combined`)
 still carry each part as well. Leave it blank to keep an area separate.
 
 **Area calculations** (right panel, after Apex's Calcs panel). A tree of
