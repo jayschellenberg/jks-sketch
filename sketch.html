@@ -363,7 +363,7 @@
     <tr><td><code>mR10</code> <code>mU4</code> <code>m3@45</code></td><td>Move the start point without drawing — e.g. a garage that starts 10 ft along the house wall.</td></tr>
     <tr><td><code>C</code> or <b>A</b></td><td>Close back to the start. <b>A</b> (on an empty line) is auto-close: when a straight close would cut a diagonal across the building the shape started and ended on, it closes along that building's walls instead. The status bar reports the closing wall so a sketch that doesn't close is caught.</td></tr>
     <tr><td><code>E</code></td><td>End as an open line (a fence, a lot line, a wall that is not a room).</td></tr>
-    <tr><td><code>100</code> <b>→</b> <b>Enter</b></td><td>Number-pad drawing: click the start, type a length, press an arrow and the wall appears with its length (another arrow turns it); Enter confirms it. Enter on an empty line does nothing, so a double Enter can't close the shape.</td></tr>
+    <tr><td><code>100</code> <b>→</b></td><td>Number-pad drawing: click the start, type a length, press an arrow and the wall is drawn that way; the cursor moves to its end and the line clears for the next length. Backspace on an empty line undoes the last wall. Enter on an empty line does nothing, so a double Enter can't close the shape.</td></tr>
     <tr><td><b>Backspace</b> on an empty line</td><td>Remove the last wall.</td></tr>
     <tr><td><b>Esc</b></td><td>Cancel the area being drawn / clear the selection.</td></tr>
     <tr><td><b>Ctrl+Z</b> / <b>Ctrl+Y</b></td><td>Undo / redo.</td></tr>
@@ -2748,7 +2748,7 @@ function submitCmd(line) {
   ghost = [];
   if (res.err) { status(res.err, "bad"); return render(); }
   cmd.value = "";
-  status(res.msg || (draw ? `${draw.points.length - 1} wall(s). Next wall: a length and an arrow, then Enter. A closes the shape.` : ""), res.msg ? "ok" : "");
+  status(res.msg || (draw ? `${draw.points.length - 1} wall(s). Next wall: a length and an arrow. A closes the shape. Backspace undoes a wall.` : ""), res.msg ? "ok" : "");
   renderPanel();
   if ($("autoFit").checked) fit(); else render();
 }
@@ -2762,9 +2762,10 @@ cmd.addEventListener("keydown", e => {
     if (!line) return status(draw ? "Type the next wall (a length, then an arrow), or press A to close the shape." : "", "");
     submitCmd(line);
   } else if (ARROW_DIR[e.key] && !e.ctrlKey && !e.altKey) {
-    // Number pad drawing (Apex style): type a length and press an arrow to give
-    // it a direction (25.5 then → becomes R25.5, previewed dashed), then Enter
-    // to draw it. Another arrow before Enter turns it: R25.5 then ↑ is U25.5.
+    // Number pad drawing (Apex style): type a length and press an arrow: the
+    // wall is drawn that way at once (25.5 then → draws R25.5), the cursor moves
+    // to its end and the command line clears for the next length. A wall typed
+    // with its letter (R25.5) and not yet drawn is turned by the arrow instead.
     const toks = cmd.value.trim().split(/\s+/), last = toks[toks.length - 1] || "";
     if (!cmd.value.trim()) return;
     let m;
@@ -2773,8 +2774,7 @@ cmd.addEventListener("keydown", e => {
     else return;
     e.preventDefault(); e.stopPropagation();
     cmd.value = toks.join(" ");
-    cmd.dispatchEvent(new Event("input"));   // preview it
-    if (!$("status").classList.contains("bad")) status(`${cmd.value}: Enter to draw it, or another arrow to turn it.`);
+    submitCmd(cmd.value);   // draws it and clears the line (left as typed if it can't be drawn)
   } else if ((e.key === "a" || e.key === "A") && !cmd.value && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault();
     autoClose();
