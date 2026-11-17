@@ -238,6 +238,18 @@ table use the net. A factored area's table row shows the working, e.g.
 `Basement (1,120 sf × 0.5)`. Defaults are 1.00 and positive, so older sketches
 come out unchanged.
 
+**Totals: in, on its own, or display only.** Select an area and set *Totals*.
+*In totals* (the default) counts as usual. *Shown on its own* keeps the area's
+size on the plan and in the table but leaves it out of every total (building
+area, category subtotals, footprint, "Combine as" totals and outside
+perimeters); it is listed on its own line under the totals instead. *Display
+only* draws and names the area with no size, and counts nowhere: use it for a
+room drawn inside another area so it isn't counted twice. The table's ✓ column
+shows `own` or `disp` for these; `areas.json` gives each area's `totals`
+(`counted`, `shown_on_its_own`, `display_only`) and lists the separate ones
+under `shown_on_their_own`. A negative area now also takes its ground back out
+of the building footprint.
+
 `areas.json` has `"format": "jks-sketch-areas", "version": 1`. Each area carries
 `base_area`, `factor`, `negative` and `area`, which is the net. Building area is
 the sum of the areas ticked "counts toward building area". Defaults: main/upper

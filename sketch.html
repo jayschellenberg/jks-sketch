@@ -285,6 +285,8 @@
       <span class="hint">same floor plate, whole building</span></span></div>
     <div class="row"><label for="sCat">Category</label><select id="sCat"></select></div>
     <div class="row"><label for="sGroup">Combine as</label><input id="sGroup" type="text" list="groupList" placeholder="blank = its own total"></div>
+    <div class="row"><label for="sCount">Totals</label><select id="sCount" title="Whether this area is added into the totals. Shown on its own: keeps its size, listed on its own line, never added. Display only: drawn and named, no size counted (use it for a room already inside another area)">
+      <option value="">In totals</option><option value="own">Shown on its own (not added)</option><option value="display">Display only (no size)</option></select></div>
     <div class="row"><label for="sInc">In bldg area</label><span><input id="sInc" type="checkbox"> counts toward building area</span></div>
     <div class="row"><label for="sFoot">Footprint</label><span><input id="sFoot" type="checkbox"> <span class="hint">ground it covers counts in site coverage</span></span></div>
     <div class="row"><label for="sFactor">Factor</label><span><input id="sFactor" type="number" step="0.05" min="0" style="width:70px"> <span class="hint">net = base × factor</span></span></div>
@@ -555,6 +557,13 @@ function setCats(list) {
 }
 // Closed areas that are measured: interior and fence lines never are.
 const isCalc = a => a.closed && a.category !== "line";
+// How an area takes part in the totals (a.count): "" counts as usual; "own" keeps
+// its size on the plan and in the table but stays out of every total (building
+// area, categories, footprint, combined, outside perimeters) and is listed on its
+// own line; "display" is drawn and named only, with no size in any total.
+const COUNT_MODES = { "": "In totals", own: "Shown on its own", display: "Display only" };
+const countOf = a => a.count === "own" || a.count === "display" ? a.count : "";
+const inTotals = a => !countOf(a);
 // Site improvements (paving, gravel, landscaping) and the building footprint.
 const isSiteImp = a => !!(CAT[a.category] && CAT[a.category].siteImp);
 const footOf = a => a.category !== "site" && !isSiteImp(a) && (typeof a.foot === "boolean" ? a.foot : !!(CAT[a.category] || {}).foot);
@@ -1567,7 +1576,7 @@ function labelLines(a, o, g) {
   const head = [sh.code && c.code ? c.code : "", sh.name ? a.name : ""].filter(Boolean).join(" ");
   if (head) lines.push({ t: head, fs: 12 * k, bold: true, fill: "#111827" });
   if (g) { if (a === g.leader) lines.push({ t: `${g.name}${sh.area ? " " + fmtArea(g.total) : ""}`, fs: 12 * k, bold: true, fill: "#111827" }); }
-  else if (sh.area) lines.push({ t: isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), fs: 11 * k, fill: "#374151" });
+  else if (sh.area && countOf(a) !== "display") lines.push({ t: isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), fs: 11 * k, fill: "#374151" });
   const st = STORAGE[storageOf(a)].short;
   if (st) lines.push({ t: st, fs: 10 * k, fill: "#4b5563" });
   const details = sh.info !== false ? [a.yearBuilt ? `Built ${a.yearBuilt}` : "", (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean).join(" | ") : "";
@@ -1993,7 +2002,7 @@ function groupsOf() {
   const g = new Map();
   for (const a of S.areas) {
     const k = (a.group || "").trim();
-    if (!k || !isCalc(a)) continue;
+    if (!k || !isCalc(a) || !inTotals(a)) continue;
     if (!g.has(k)) g.set(k, { name: k, total: 0, members: [], leader: null });
     const e = g.get(k);
     e.total += netAreaOf(a); e.members.push(a);
@@ -2022,7 +2031,7 @@ function outerPerimeter(list) {
 function areasByBuildingLevel() {
   const out = {};
   for (const a of S.areas) {
-    if (!isCalc(a) || !a.included || a.category === "site" || isSiteImp(a)) continue;
+    if (!isCalc(a) || !a.included || !inTotals(a) || a.category === "site" || isSiteImp(a)) continue;
     const b = a.building || "(no building)", lv = a.level || "(no level)";
     ((out[b] = out[b] || {})[lv] = out[b][lv] || []).push(a);
   }
@@ -2046,13 +2055,14 @@ const storeysNote = b => `${b.storeys} storeys × same floor plate`;
 // on every page), and site coverage is footprint ÷ site area. A building's
 // building_area is the floor plate as drawn; gba multiplies it by its storeys.
 function totals() {
-  const bld = new Map(), siteImp = {}; let site = 0, footprint = 0;
+  const bld = new Map(), siteImp = {}, own = []; let site = 0, footprint = 0;
   for (const a of S.areas) {
     if (!isCalc(a)) continue;
     const v = netAreaOf(a);
+    if (!inTotals(a)) { if (countOf(a) === "own") own.push({ name: a.name, building: a.building, area: v }); continue; }
     if (a.category === "site") { site += v; continue; }
     if (isSiteImp(a)) { siteImp[a.category] = (siteImp[a.category] || 0) + v; continue; }
-    if (footOf(a)) footprint += areaOf(a);
+    if (footOf(a)) footprint += a.negative ? -areaOf(a) : areaOf(a);   // a deduction drawn inside takes its ground back out
     const key = a.building || "(no building)";
     if (!bld.has(key)) bld.set(key, { building: key, building_area: 0, unheated: 0, covered: 0, by_level: {}, by_category: {} });
     const t = bld.get(key);
@@ -2066,11 +2076,13 @@ function totals() {
     t.by_level[lv] = (t.by_level[lv] || 0) + v;
   }
   for (const t of bld.values()) { t.storeys = storeysOf(t.building); t.gba = t.building_area * t.storeys; }
-  return { buildings: [...bld.values()], site, siteImp, footprint, coverage: site > EPS && footprint > 0 ? footprint / site : null };
+  return { buildings: [...bld.values()], site, siteImp, footprint, own, coverage: site > EPS && footprint > 0 ? footprint / site : null };
 }
 // Footer lines shared by the panel, the calculations and the printed table.
 function siteLines(t) {
-  const out = Object.entries(t.siteImp).map(([k, v]) => [`${CAT[k] ? CAT[k].label : k}`, v]);
+  // Areas shown on their own come first: listed, never added into anything.
+  const out = (t.own || []).map(o => [`${o.name} (not in totals)`, o.area]);
+  out.push(...Object.entries(t.siteImp).map(([k, v]) => [`${CAT[k] ? CAT[k].label : k}`, v]));
   if (t.footprint) out.push(["Building footprint", t.footprint]);
   return out;
 }
@@ -2101,6 +2113,7 @@ function renderPanel() {
     if (document.activeElement !== $("sStoreys")) $("sStoreys").value = storeysOf(it.building);
     $("sStoreys").disabled = it.category === "site" || isSiteImp(it);
     if (document.activeElement !== $("sGroup")) $("sGroup").value = it.group || "";
+    $("sCount").value = countOf(it);
     $("sCat").value = it.category; $("sInc").checked = it.included; $("sDims").checked = it.dims;
     $("sDimsSide").textContent = it.dimsOut ? "Outside → inside" : "Inside → outside";
     $("sFoot").checked = footOf(it); $("sFoot").disabled = it.category === "site" || isSiteImp(it);
@@ -2140,8 +2153,8 @@ function renderPanel() {
     const gm = groupOf(a, groups) ? ` <span class="hint">→ ${esc(a.group.trim())}</span>` : "";
     h += `<tr data-id="${a.id}" class="${isSel ? "sel" : ""}"><td>${esc(a.name)}${gm}</td>` +
       `<td>${a.category === "site" ? "site" : esc([a.building, a.level].filter(Boolean).join(" / "))}</td>` +
-      `<td class="n">${isCalc(a) ? fmtArea(netAreaOf(a)).replace(/ .*/, "") : "—"}</td><td class="n">${P(perimeterOf(a))}</td>` +
-      `<td>${a.included && isCalc(a) && a.category !== "site" ? "✓" : ""}</td></tr>`;
+      `<td class="n">${isCalc(a) && countOf(a) !== "display" ? fmtArea(netAreaOf(a)).replace(/ .*/, "") : "—"}</td><td class="n">${P(perimeterOf(a))}</td>` +
+      `<td>${countOf(a) ? `<span class="hint" title="${COUNT_MODES[countOf(a)]}">${countOf(a) === "own" ? "own" : "disp"}</span>` : a.included && isCalc(a) && a.category !== "site" ? "✓" : ""}</td></tr>`;
   }
   for (const g of groups.values())
     h += `<tr class="total"><td colspan="2">${esc(g.name)} <span class="hint">(${g.members.length} combined)</span></td><td class="n">${fmtArea(g.total).replace(/ .*/, "")}</td>` +
@@ -2235,11 +2248,12 @@ function renderCalcs() {
         if (storageOf(a)) kv.push(["Type", STORAGE[storageOf(a)].label]);
         if (a.yearBuilt) kv.push(["Year built", a.yearBuilt]);
         if ((a.ceilings || []).length) kv.push(["Ceiling", esc(fmtCeilings(a))]);
-        if (a.category !== "site" && !a.included) kv.push(["Building area", "not counted"]);
+        if (a.category !== "site" && !a.included && inTotals(a)) kv.push(["Building area", "not counted"]);
+        if (!inTotals(a)) kv.push(["Totals", COUNT_MODES[countOf(a)] + " (not added)"]);
         leaves += node("a:" + a.id, `${esc(a.name)} : <span class="${net < 0 ? "neg" : ""}">${n2(net)}</span>`,
           kv.map(([l, v]) => `<div class="kv">${l} : ${v}</div>`).join(""), isSel ? "sel" : "", a.id);
       }
-      const sum = list.reduce((s, a) => s + netAreaOf(a), 0);
+      const sum = list.filter(inTotals).reduce((s, a) => s + netAreaOf(a), 0);
       inner += b === "Site" ? leaves : node("c:" + b + "|" + k, `${esc(CAT[k].label)} : ${n2(sum)}`, leaves);
     }
     const bt = t.buildings.find(x => x.building === b);
@@ -2321,7 +2335,8 @@ function exportSvg() {
     const calc = a => factorOf(a) !== 1 || a.negative
       ? ` (${fmtArea(areaOf(a))} × ${a.negative ? "−" : ""}${fmtNum(factorOf(a), 2)})` : "";
     for (const a of list) rows.push([a.name, a.category === "site" ? "Site" : [a.building, a.level].filter(Boolean).join(" — "),
-      CAT[a.category].label + calc(a), fmtArea(netAreaOf(a)), a.included && a.category !== "site" ? "yes" : "", false,
+      CAT[a.category].label + calc(a), countOf(a) === "display" ? "—" : fmtArea(netAreaOf(a)),
+      countOf(a) ? COUNT_MODES[countOf(a)].toLowerCase() : a.included && a.category !== "site" ? "yes" : "", false,
       [a.yearBuilt ? `Built ${a.yearBuilt}` : "", (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : "", STORAGE[storageOf(a)].short].filter(Boolean).join(" | ")]);
     for (const g of groupsOf().values()) {
       if (!g.members.some(visible)) continue;
@@ -2612,8 +2627,9 @@ function areasJson() {
     areas: S.areas.filter(isCalc).map(a => ({
       name: a.name, building: a.building, level: a.level,
       category: a.category, category_label: CAT[a.category].label,
-      included_in_building_area: a.category !== "site" && !isSiteImp(a) && a.included,
-      in_footprint: footOf(a), site_improvement: isSiteImp(a),
+      included_in_building_area: a.category !== "site" && !isSiteImp(a) && a.included && inTotals(a),
+      in_footprint: footOf(a) && inTotals(a), site_improvement: isSiteImp(a),
+      totals: { "": "counted", own: "shown_on_its_own", display: "display_only" }[countOf(a)],
       combined_as: groupOf(a, groups) ? a.group.trim() : null,
       base_area: both(areaOf(a)), factor: factorOf(a), negative: !!a.negative,
       area: both(netAreaOf(a)),
@@ -2649,6 +2665,8 @@ function areasJson() {
       .map(x => ({ number: x.num, facing: facingText(x), page: (S.pages.find(p => p.id === pageOf(x)) || {}).name })),
     site_improvements: Object.fromEntries(Object.entries(t.siteImp).map(([k, v]) => [k, both(v)])),
     building_footprint: both(t.footprint),
+    // Areas shown on their own: sized, but not added into any total above.
+    shown_on_their_own: t.own.map(o => ({ name: o.name, building: o.building, area: both(o.area) })),
     site_coverage_pct: t.coverage === null ? null : Math.round(t.coverage * 1000) / 10,
   };
 }
@@ -3229,6 +3247,7 @@ onSelEdit("sCat", (a, el) => {
   if (wasDefault) { const others = S.areas.filter(x => x !== a); a.name = defaultName(a, others); }
 }, "change");
 onSelEdit("sInc", (a, el) => { a.included = el.checked; delete el.dataset.dirty; }, "change");
+onSelEdit("sCount", (a, el) => { if (el.value) a.count = el.value; else delete a.count; delete el.dataset.dirty; }, "change");
 onSelEdit("sFoot", (a, el) => { a.foot = el.checked; delete el.dataset.dirty; }, "change");
 onSelEdit("sDims", (a, el) => { a.dims = el.checked; delete el.dataset.dirty; }, "change");
 // Flip dimensions to the other side of the walls, for every selected area.
