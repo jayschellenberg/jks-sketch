@@ -238,6 +238,16 @@ table use the net. A factored area's table row shows the working, e.g.
 `Basement (1,120 sf × 0.5)`. Defaults are 1.00 and positive, so older sketches
 come out unchanged.
 
+**Shared walls.** Each area's perimeter is split into *shared* (lying along a
+wall of another counted area on the same floor of the same building) and
+*outside* (the rest), for costing areas of different finish where they meet.
+The selected area shows both under *Size* and in the calculations, and hovering
+an area's perimeter in the table shows them. Tick *Area labels show →
+perimeter and shared walls* to print "Perim 345' · shared 219'" on each label
+and in the exported table. Walls must line up exactly to count as shared, and
+display-only areas, site areas and curved walls never share. areas.json carries
+`shared_perimeter` and `outside_perimeter` for every area.
+
 **Totals: in, on its own, or display only.** Select an area and set *Totals*.
 *In totals* (the default) counts as usual. *Shown on its own* keeps the area's
 size on the plan and in the table but leaves it out of every total (building
