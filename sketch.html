@@ -936,6 +936,11 @@ function defaultName(a, among = S.areas) {
 }
 function startDraw(at) { draw = newArea(at); setSel(null); }
 function lastPt() { return draw.points[draw.points.length - 1]; }
+// A clicked (or Enter-confirmed) corner: back on the start closes the area.
+function lockCorner(p) {
+  if (draw.points.length >= 3 && dist(p, draw.points[0]) < EPS) status(finish(true, true), "ok");
+  else if (dist(p, lastPt()) > EPS) { draw.points.push(p); status(`${fmtLen(dist(draw.points[draw.points.length - 2], p))} wall locked. Click (or Enter) for the next corner, or type a wall. A closes the shape.`); }
+}
 
 // Apply parsed ops to the area being drawn. Returns a status message.
 function applyOps(ops) {
@@ -1926,6 +1931,14 @@ function liveSvg(T) {
     out.push(`<circle cx="${sp[0][0]}" cy="${sp[0][1]}" r="4" fill="#fff" stroke="#2563eb" stroke-width="2"/>`);
     const e = sp[sp.length - 1];
     out.push(`<circle cx="${e[0]}" cy="${e[1]}" r="3" fill="#2563eb"/>`);
+    // The next wall follows the mouse (snapping to existing corners) until a
+    // click or Enter locks it. Hidden while a wall is being typed.
+    if (hover && tool === "draw" && !cmd.value.trim() && dist(hover.pt, lastPt()) > EPS) {
+      const [hx, hy] = T(hover.pt[0], hover.pt[1]), closes = draw.points.length >= 3 && dist(hover.pt, draw.points[0]) < EPS;
+      out.push(`<line x1="${e[0]}" y1="${e[1]}" x2="${hx}" y2="${hy}" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="6 4"/>`);
+      const t = fmtLen(dist(lastPt(), hover.pt)) + (closes ? "  (closes)" : "");
+      out.push(`<text x="${(e[0] + hx) / 2}" y="${(e[1] + hy) / 2 - 6}" font-size="12" text-anchor="middle" fill="#2563eb" font-family="Arial">${esc(t)}</text>`);
+    }
   } else {
     const [px, py] = T(pen[0], pen[1]);
     out.push(`<path d="M${px - 7} ${py}H${px + 7}M${px} ${py - 7}V${py + 7}" stroke="#2563eb" stroke-width="1.5"/>`);
@@ -2759,6 +2772,9 @@ cmd.addEventListener("keydown", e => {
     const line = cmd.value.trim();
     // An empty Enter doesn't close the shape (a double-tapped Enter can't close
     // it by accident): A, or C, closes.
+    // With the mouse on the plan, an empty Enter locks the wall to the corner
+    // under the cursor (the same as clicking there).
+    if (!line && draw && hover && tool === "draw") { lockCorner(hover.pt); renderPanel(); return render(); }
     if (!line) return status(draw ? "Type the next wall (a length, then an arrow), or press A to close the shape." : "", "");
     submitCmd(line);
   } else if (ARROW_DIR[e.key] && !e.ctrlKey && !e.altKey) {
@@ -2967,14 +2983,13 @@ svg.addEventListener("mousedown", e => {
   e.preventDefault();
   if (tool === "draw") {
     let p = snapPoint(w).pt;
-    if (!draw) { pen = p; startDraw(p); status("Start point set — type walls (e.g. R40 D28 L40 C) or click corners."); }
+    if (!draw) { pen = p; startDraw(p); status("Start point set — type walls (e.g. R40 D28 L40 C) or click corners (Enter also locks the corner under the mouse)."); }
     else {
       if (e.shiftKey && !snapPoint(w).vertex) {   // keep the wall square
         const l = lastPt();
         p = Math.abs(p[0] - l[0]) > Math.abs(p[1] - l[1]) ? [p[0], l[1]] : [l[0], p[1]];
       }
-      if (draw.points.length >= 3 && dist(p, draw.points[0]) < EPS) status(finish(true, true), "ok");
-      else if (dist(p, lastPt()) > EPS) draw.points.push(p);
+      lockCorner(p);
     }
     renderPanel(); render(); cmd.focus();
   } else if (tool === "select") {
