@@ -221,8 +221,11 @@ you click on one that's already placed (clicking elsewhere places a new one).
 **Separate or combined.** Each area reports its own size. Give adjoining areas
 the same *Combine as* name (e.g. `GLA`) and the plan adds one combined total,
 on the label of its largest part, drawn as one shape: walls between the parts
-(same building and level) are light and dashed, with no dimensions. Each part
-keeps its own size on its label. With *perimeter and shared walls* ticked, the
+(same building and level) are light and dashed, with no dimensions. On screen
+each part keeps its own size on its label. Printed pages show only the
+combined total (the parts are named, with no size, and get no table row of
+their own) unless *Area labels show → sizes of combined parts when printing*
+is ticked. With *perimeter and shared walls* ticked, the
 combined label and its table row also give the combination's outside perimeter.
 In the calculations panel each combination has its own entry ("Office :
 15,864.76 combined · perim 1,119.00") that expands to each part's size,

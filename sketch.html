@@ -214,6 +214,7 @@
       <label><input id="shArea" type="checkbox" checked> size</label>
       <label title="Year built and ceiling height, where entered"><input id="shInfo" type="checkbox"> details (year built, ceiling)</label>
       <label title="Perimeter, and how much of it is shared with other areas on the same floor (the rest is outside wall)"><input id="shShared" type="checkbox"> perimeter and shared walls</label>
+      <label title="On printed pages, give each part of a &quot;Combine as&quot; area its own size and its own row in the table. Off: the parts show their names and only the combined total is given. The screen always shows the parts."><input id="shParts" type="checkbox"> sizes of combined parts when printing</label>
       <button id="bLib" title="Area library: codes, labels, counts toward building area, default factors, fills">Area library…</button>
     </div></details>
     <details class="menu"><summary>Underlay</summary><div class="pop">
@@ -1576,13 +1577,16 @@ function labelLines(a, o, g) {
   const sh = S.show || { name: true, area: true }, c = CAT[a.category], k = o.k || 1, lines = [];
   const head = [sh.code && c.code ? c.code : "", sh.name ? a.name : ""].filter(Boolean).join(" ");
   if (head) lines.push({ t: head, fs: 12 * k, bold: true, fill: "#111827" });
-  // Every area keeps its own size; a combination's total goes on its largest member.
-  if (sh.area && countOf(a) !== "display") lines.push({ t: isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), fs: 11 * k, fill: "#374151" });
+  // On screen every area keeps its own size and a combination's total goes on
+  // its largest member. On a printed page the parts of a combination show only
+  // their names unless "sizes of combined parts" is ticked.
+  const own = !g || o.live || sh.parts;
+  if (sh.area && own && countOf(a) !== "display") lines.push({ t: isCalc(a) ? fmtArea(netAreaOf(a)) : fmtLen(perimeterOf(a)), fs: 11 * k, fill: "#374151" });
   const st = STORAGE[storageOf(a)].short;
   if (st) lines.push({ t: st, fs: 10 * k, fill: "#4b5563" });
   const details = sh.info !== false ? [a.yearBuilt ? `Built ${a.yearBuilt}` : "", (a.ceilings || []).length ? `Ceiling ${fmtCeilings(a)}` : ""].filter(Boolean).join(" | ") : "";
   if (details) lines.push({ t: details, fs: 10 * k, fill: "#4b5563" });
-  if (sh.shared && sharesWalls(a))
+  if (sh.shared && own && sharesWalls(a))
     lines.push({ t: `Perim ${fmtLen(perimeterOf(a))} · shared ${fmtLen(sharedPerimeterOf(a))}`, fs: 10 * k, fill: "#4b5563" });
   // The combination's total (and, with perimeters shown, its outside perimeter).
   if (g && a === g.leader) {
@@ -2324,7 +2328,7 @@ function syncInfoFields() {
   $("units").value = S.units;
   $("dimFmt").disabled = S.units === "m";
   const sh = S.show || { name: true, area: true };
-  $("shCode").checked = !!sh.code; $("shName").checked = sh.name !== false; $("shArea").checked = sh.area !== false; $("shInfo").checked = sh.info !== false; $("shShared").checked = !!sh.shared;
+  $("shCode").checked = !!sh.code; $("shName").checked = sh.name !== false; $("shArea").checked = sh.area !== false; $("shInfo").checked = sh.info !== false; $("shShared").checked = !!sh.shared; $("shParts").checked = !!sh.parts;
   if (document.activeElement !== $("northRot")) $("northRot").value = fmtNum(S.northRot || 0, 2);
   $("scaleLbl").textContent = S.units === "m" ? "1:" : '1" ='; $("scaleUnit").textContent = S.units === "m" ? "" : "'";
 }
@@ -2365,7 +2369,9 @@ function exportSvg() {
   const b = bbox(pts), bw = Math.max(b.x1 - b.x0, 1e-3), bh = Math.max(b.y1 - b.y0, 1e-3);
   const t = totals(), rows = [];
   if (withTable) {
-    const list = visAreas().filter(isCalc).sort((a, c) =>
+    // Parts of a combination get their own rows only with "sizes of combined parts" ticked.
+    const grps = groupsOf(), parts = !!(S.show || {}).parts;
+    const list = visAreas().filter(a => isCalc(a) && (parts || !groupOf(a, grps))).sort((a, c) =>
       (a.category === "site") - (c.category === "site") || (a.building || "").localeCompare(c.building || "") ||
       (a.level || "").localeCompare(c.level || "") || a.id - c.id);
     // A factored or deducted area shows its calculation in the category cell.
@@ -3629,7 +3635,7 @@ $("viewLevel").onchange = () => {
   renderPanel(); fit();
   status(viewLevel ? `Showing ${viewLevel} only. Exports are of this level.` : "Showing all levels.");
 };
-for (const [id, k] of [["shCode", "code"], ["shName", "name"], ["shArea", "area"], ["shInfo", "info"], ["shShared", "shared"]])
+for (const [id, k] of [["shCode", "code"], ["shName", "name"], ["shArea", "area"], ["shInfo", "info"], ["shShared", "shared"], ["shParts", "parts"]])
   $(id).onchange = () => { pushHistory(); S.show = Object.assign({}, S.show, { [k]: $(id).checked }); commit(); };
 $("dimDec").onchange = () => { render(); renderPanel(); };
 // Rotate the selection, or everything shown, about its middle. Positive =
