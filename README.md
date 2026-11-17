@@ -43,7 +43,10 @@ and in `areas.json` (`generator`), so a shared copy can be told apart. It's
    category sets the fill colour, the code, whether the area counts toward
    building area and its default factor. You can change all of it afterwards.
 4. **Draw**: click the starting corner. It snaps to an existing corner first, then
-   to the grid (*Grid snap* in the View menu, 1 by default). Then type the walls into the command line and press Enter.
+   to the grid (*Grid snap* in the View menu, 1 by default). Then type the walls into the command line and press Enter,
+   or click the corners: the next wall follows the mouse (dashed, with its length), snapping to existing
+   corners, and locks only when you click or press Enter. Clicking the start point closes the area. After an area
+   closes, the next click on the plan starts a new one.
    For an addition, start on the building, type only the new walls and finish
    with `CW` (below).
 5. **Fix**: with *Select*, click an area. Its corners show handles: drag one
