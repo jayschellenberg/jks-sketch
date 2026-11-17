@@ -86,12 +86,12 @@ Up is north on the page. Several commands can go on one line: `R40 D28 L40 C`.
 | Backspace on empty line | remove the last wall |
 | Esc | cancel the area being drawn / clear selection |
 | Ctrl+Z / Ctrl+Y | undo / redo |
-| `100` → Enter | number-pad drawing: click the start, type `100`, press → and the wall appears with its `100'` label (another arrow turns it); Enter confirms it. Then the next wall. Enter on an empty line does nothing, so a double Enter can't close the shape |
+| `100` → | number-pad drawing: click the start, type `100`, press → and the wall is drawn with its `100'` label; the cursor moves to its end and the command line clears for the next length. Backspace on an empty line undoes the last wall. Enter on an empty line does nothing, so a double Enter can't close the shape |
 | Arrows (empty line) | nudge the selection one grid step; Shift ×10 |
 | Ctrl+A / Ctrl+C / Ctrl+V | select all shown / copy / paste |
 | Shift+click, drag on empty space | add to the selection / fence-select (Select tool) |
 | Wheel / right-drag | zoom / pan |
-| *auto* next to *Fit* (on by default) | re-fit the view after each wall confirmed with Enter, so the whole drawing stays in view; untick to stay zoomed in |
+| *auto* next to *Fit* (on by default) | re-fit the view after each wall is drawn, so the whole drawing stays in view; untick to stay zoomed in |
 
 **Closure check.** If every typed wall is square and the closing wall comes out
 diagonal, the status bar says so. A dimension was mistyped, or misread on the
@@ -100,7 +100,7 @@ field sketch. Typing all four walls of a rectangle closes it exactly.
 **Adding onto a building (a covered area, an addition).** Set *Next area*
 (e.g. *Canopy / covered*), then with *Draw* click the building's corner where
 the new part starts: the click snaps onto the corner and the cursor goes to the
-command box. Type its walls (`12` ↓ Enter, `40` → Enter, `12` ↑ Enter) and
+command box. Type its walls (`12` ↓, `40` →, `12` ↑) and
 press **A** to close. The wall along the building is closed for you, along the
 building's own walls if the shape starts and ends on it.
 
