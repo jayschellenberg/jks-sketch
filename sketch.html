@@ -620,6 +620,7 @@ let activeVertex = null;    // { id, i }: the corner handle last clicked (Delete
 let dimClickTimer = null;   // a single click on a dimension waits, in case it's a double-click
 let tool = "draw";
 let hover = null;           // snapped world point under the cursor
+let keyedWall = null;       // mouse position when a wall was last drawn by length + arrow (an Enter then doesn't lock the cursor corner)
 let ghost = [];             // preview points from the half-typed command
 let ghostWalls = [];        // its corners, for the length labels
 let calib = null;           // first calibration point
@@ -2773,6 +2774,7 @@ function setTool(t) {
 // ---------------------------------------------------------------- events: command line
 const cmd = $("cmd");
 cmd.addEventListener("input", () => {
+  keyedWall = null;
   const line = cmd.value;
   ghost = [];
   ghostWalls = [];
@@ -2839,6 +2841,9 @@ cmd.addEventListener("keydown", e => {
     // it by accident): A, or C, closes.
     // With the mouse on the plan, an empty Enter locks the wall to the corner
     // under the cursor (the same as clicking there).
+    // Not right after a wall drawn by length + arrow, though: an Enter typed
+    // out of habit then would add a wall to wherever the mouse happens to sit.
+    if (!line && keyedWall) { keyedWall = null; return status(draw ? "Next wall: a length and an arrow. A closes the shape." : "", ""); }
     if (!line && draw && hover && tool === "draw") { lockCorner(hover.pt); renderPanel(); return render(); }
     if (!line) return status(draw ? "Type the next wall (a length, then an arrow), or press A to close the shape." : "", "");
     submitCmd(line);
@@ -2856,6 +2861,7 @@ cmd.addEventListener("keydown", e => {
     e.preventDefault(); e.stopPropagation();
     cmd.value = toks.join(" ");
     submitCmd(cmd.value);   // draws it and clears the line (left as typed if it can't be drawn)
+    keyedWall = cmd.value ? null : (lastMouse || [NaN, NaN]).slice();
   } else if ((e.key === "a" || e.key === "A") && !cmd.value && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault();
     autoClose();
@@ -3038,6 +3044,7 @@ svg.addEventListener("wheel", e => {
   render();
 }, { passive: false });
 svg.addEventListener("mousedown", e => {
+  keyedWall = null;
   const r = svg.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, w = s2w(sx, sy);
   if (e.button !== 0) { drag = { kind: "pan", sx, sy, cx: view.cx, cy: view.cy }; svg.classList.add("pan"); return; }
   // Some browsers move the keyboard focus off the command box when the plan is
@@ -3164,7 +3171,12 @@ svg.addEventListener("mousedown", e => {
     drag = { kind: "underlay", w0: w, x: underlay.x, y: underlay.y };
   }
 });
+let lastMouse = null;
 window.addEventListener("mousemove", e => {
+  // A real mouse move (not one the browser fires as the plan re-fits under a
+  // still cursor) puts Enter back to locking the corner under the cursor.
+  if (keyedWall && (e.clientX !== keyedWall[0] || e.clientY !== keyedWall[1])) keyedWall = null;
+  lastMouse = [e.clientX, e.clientY];
   const r = svg.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, w = s2w(sx, sy);
   if (sx >= 0 && sy >= 0 && sx <= r.width && sy <= r.height) {
     $("coords").textContent = `${fmtNum(w[0], 2)}, ${fmtNum(w[1], 2)} ${S.units}`;
