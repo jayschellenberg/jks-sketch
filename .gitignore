@@ -1,0 +1,6 @@
+# Reference material (manuals) is not versioned.
+*.pdf
+
+# Sketches and exports made while testing belong in job folders, not here.
+*.sketch.json
+*areas.json
