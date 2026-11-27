@@ -1,6 +1,6 @@
 # JKS Sketch
 
-Status: Active | Next: tbd | Blocked: none | Updated: 2026-11-27
+Status: Active | Next: try the area breakdown on a real job sketch | Blocked: none | Updated: 2026-11-27
 
 Re-enters a hand-drawn field sketch as a clean, dimensioned plan with computed
 areas. One self-contained file, `sketch.html`: open it in Edge or Chrome
@@ -24,7 +24,7 @@ format and decimals, what area labels show, the area library); *Underlay*
 areas.json, and page setup: paper, orientation, scale, smallest text, image
 dpi, area table); *Print*; Help.
 
-**Version.** The version (now 1.0, 2026-10-25) shows next to the name, in
+**Version.** The version (now 1.1, 2026-11-27) shows next to the name, in
 Help, at the foot of every exported page, in saved sketches (`saved_with`)
 and in `areas.json` (`generator`), so a shared copy can be told apart. It's
 `APP_VERSION` near the top of the script; bump it with each release.
@@ -246,6 +246,17 @@ building → category → area. Each area opens to base area, factor, net area a
 perimeter. *Expand all* opens everything; *Collapse all* keeps each area's net
 figure and folds the detail. Underneath: defined areas, building area per
 building, combined totals, site area.
+
+**Area breakdown.** Open an area in the calculations and its working is
+listed under *Base area*: the shape cut into rectangles (`40.00 × 28.00`),
+trapezoids, triangles and parallelograms, plus one circular segment for each
+curved wall (`less …` when it bows into the room). The cut that gives the
+fewest pieces is used, along the building's own walls even when it's drawn at
+an angle, and the pieces add up to the base area. *Export ▸ Copy area
+breakdown (text)* copies every area's working, with its factor, to paste into
+the workfile. `areas.json` gives each area's `breakdown` (shape, dimensions,
+area; a deduction is negative). An area whose walls cross is reported by
+coordinates, without pieces.
 
 **Factor and negative.** New areas take their category's default factor from
 the library. Select an area to set its own *Factor* (net = base × factor,

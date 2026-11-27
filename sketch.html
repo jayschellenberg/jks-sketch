@@ -96,6 +96,7 @@
   #calcs summary { cursor: pointer; padding: 1px 0; }
   #calcs summary.sel { background: #eff6ff; }
   #calcs .kv { margin-left: 26px; color: var(--muted); }
+  #calcs .kv.bk { margin-left: 38px; }
   #calcs .neg { color: var(--bad); }
   #calcSum { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 4px; }
   #calcSum div { display: flex; justify-content: space-between; }
@@ -234,6 +235,7 @@
         <button id="bJpg" title="This page as a JPG at the DPI chosen">JPG</button></span>
       <button id="bClip" title="Copy this page as a picture, to paste into Word, Outlook or an email (Ctrl+Shift+C)">Copy page to clipboard</button>
       <button id="bAreas" title="Areas for the job record">areas.json (all pages)</button>
+      <button id="bWork" title="Copy each area's working (the rectangles, triangles and curves it adds up from) as text, to paste into the workfile">Copy area breakdown (text)</button>
       <div class="phead">Page setup (Print, PDF, PNG, JPG)</div>
       <div class="prow"><span>Paper</span><span><select id="exPaper" title="Page size for Print, PNG and JPG"><option value="letter">Letter</option><option value="legal">Legal</option><option value="11in 17in">Tabloid</option><option value="A4">A4</option><option value="A3">A3</option><option value="fig" title="6.5 × 9 in, no margin: drops into a letter-size report at full size">Report figure</option></select>
         <select id="exOrient" title="Orientation"><option value="portrait" selected>Portrait</option><option value="landscape">Landscape</option></select></span></div>
@@ -447,7 +449,7 @@
   (default: a short strip of GBA, unheated and covered areas, site, footprint, coverage and doors), the <b>Full area table</b>, or <b>Nothing</b>. Place a PNG or JPG at its true page size and its text is
   that size too; <b>dpi</b> sets the image resolution. A dimension too long for its wall at that size is shortened, or left off with a
   warning. SVG, PNG and JPG are of the page shown; <b>Print</b> (and Save as PDF) makes one sheet per page.
-  The Sketch panel's <b>Notes</b> print at the foot of every page (by default the not-to-scale and for-illustration-only notes); clear them to leave them off. <b>areas.json</b> records every area with building, level, category and size in both sq ft and m². File all of them into the
+  The Sketch panel's <b>Notes</b> print at the foot of every page (by default the not-to-scale and for-illustration-only notes); clear them to leave them off. <b>areas.json</b> records every area with building, level, category and size in both sq ft and m². Each area in the <b>Area calculations</b> opens to its working: the rectangles, trapezoids, triangles and curved-wall segments its base area adds up from. <b>Export ▸ Copy area breakdown</b> copies that working for every area as text for the workfile; <code>areas.json</code> carries it as <code>breakdown</code>. File all of them into the
   job's <code>dropzone/</code>.</p>
   <p><button id="bHelpClose">Close</button></p>
 </div>
@@ -573,7 +575,7 @@ const FT_TO_M = 0.3048;
 const EPS = 1e-6;
 // Shown in the toolbar, in Help, at the foot of every exported page and in
 // saved files, so a shared copy can be told apart. Bump with each release.
-const APP_VERSION = "1.0", APP_DATE = "2026-10-25";
+const APP_VERSION = "1.1", APP_DATE = "2026-11-27";
 const AUTOSAVE_KEY = "jks-sketch-autosave-v1";
 // Besides the current sketch, the last few sketches are kept in the browser so
 // starting a new one (or a mistake) can't lose unsaved work: Recover lists them.
@@ -729,6 +731,100 @@ function bbox(points) {
   return { x0, y0, x1, y1 };
 }
 const round4 = v => Math.round(v * 1e4) / 1e4;
+
+// ---------------------------------------------------------------- area breakdown
+// The working behind an area's base figure. The straight-walled shape is cut
+// across at every corner into rectangles, trapezoids and triangles (pieces
+// that continue the same two walls are joined), and each curved wall adds or
+// deducts a circular segment. The cut direction giving the fewest pieces is
+// used. The pieces' signed areas add up to areaOf(a).
+function sliceShape(p, ang) {
+  const c = Math.cos(-ang), s = Math.sin(-ang), T = 1e-6, n = p.length;
+  const q = p.map(([x, y]) => [x * c - y * s, x * s + y * c]);
+  const ys = q.map(v => v[1]).sort((a, b) => a - b).filter((y, i, l) => !i || y - l[i - 1] > T);
+  const done = [];
+  let open = [];
+  for (let k = 0; k + 1 < ys.length; k++) {
+    const y0 = ys[k], y1 = ys[k + 1], mid = (y0 + y1) / 2, cuts = [];
+    for (let i = 0; i < n; i++) {
+      const A = q[i], B = q[(i + 1) % n];
+      if (Math.min(A[1], B[1]) >= mid || Math.max(A[1], B[1]) <= mid) continue;
+      const at = y => A[0] + (y - A[1]) / (B[1] - A[1]) * (B[0] - A[0]);
+      cuts.push({ b: at(y0), t: at(y1), m: at(mid) });
+    }
+    cuts.sort((a, b) => a.m - b.m);
+    const now = [];
+    for (let j = 0; j + 1 < cuts.length; j += 2) {
+      const L = cuts[j], R = cuts[j + 1], h = y1 - y0;
+      const o = open.find(o => Math.abs(o.tl - L.b) < T && Math.abs(o.tr - R.b) < T &&
+        Math.abs((o.tl - o.bl) * h - (L.t - L.b) * (o.y1 - o.y0)) < T && Math.abs((o.tr - o.br) * h - (R.t - R.b) * (o.y1 - o.y0)) < T);
+      if (o) { o.tl = L.t; o.tr = R.t; o.y1 = y1; now.push(o); }
+      else { const x = { y0, y1, bl: L.b, br: R.b, tl: L.t, tr: R.t }; done.push(x); now.push(x); }
+    }
+    open = now;
+  }
+  return done.map(x => {
+    const b = x.br - x.bl, t = x.tr - x.tl, h = x.y1 - x.y0, area = (b + t) / 2 * h;
+    if (Math.abs(b - t) < 1e-4) return Math.abs(x.tl - x.bl) < 1e-4 ? { shape: "rectangle", w: b, h, area } : { shape: "parallelogram", base: b, h, area };
+    if (b < 1e-4 || t < 1e-4) return { shape: "triangle", base: Math.max(b, t), h, area };
+    return { shape: "trapezoid", a: Math.max(b, t), b: Math.min(b, t), h, area };
+  });
+}
+function breakdownOf(a) {
+  if (!a.closed || a.points.length < 3) return [];
+  const p = a.points, n = p.length, total = signedAreaOf(a), sgn = total < 0 ? -1 : 1;
+  const poly = signedArea(p), ps = sgn * (poly < 0 ? -1 : 1);
+  let pieces = [];
+  if (Math.abs(poly) > EPS && !isSimple(p)) pieces = [{ shape: "polygon", area: Math.abs(poly) }];
+  else if (Math.abs(poly) > EPS) {
+    // Cut along each wall's direction, and square to it; a big outline is only cut level and upright.
+    const angs = [0, Math.PI / 2];
+    if (n <= 60) for (let i = 0; i < n; i++) {
+      const B = p[(i + 1) % n];
+      if (dist(p[i], B) < EPS) continue;
+      const t = Math.atan2(B[1] - p[i][1], B[0] - p[i][0]);
+      for (const v of [t, t + Math.PI / 2]) { const m = ((v % Math.PI) + Math.PI) % Math.PI; if (!angs.some(x => Math.abs(x - m) < 1e-6 || Math.abs(Math.abs(x - m) - Math.PI) < 1e-6)) angs.push(m); }
+    }
+    const score = l => l.length * 1000 - l.filter(x => x.shape === "rectangle").length;
+    for (const g of angs) { const l = sliceShape(p, g); if (l.length && (!pieces.length || score(l) < score(pieces))) pieces = l; }
+  }
+  for (const x of pieces) x.area *= ps;
+  for (let i = 0; i < n; i++) {
+    const s = riseAt(a, i), ai = arcInfo(p[i], p[(i + 1) % n], s);
+    if (ai) pieces.push({ shape: "segment", chord: ai.c, rise: Math.abs(s), radius: ai.R, angle: ai.th * 180 / Math.PI, area: -sgn * Math.sign(s) * ai.seg });
+  }
+  const gap = Math.abs(total) - pieces.reduce((t, x) => t + x.area, 0);
+  if (Math.abs(gap) > 0.005) pieces.push({ shape: "balance", area: gap });
+  return pieces;
+}
+// One piece's working as text, f formatting each number: "40.00 × 28.00".
+function breakdownText(x, f) {
+  switch (x.shape) {
+    case "rectangle": return `${f(x.w)} × ${f(x.h)}`;
+    case "parallelogram": return `${f(x.base)} × ${f(x.h)} (parallelogram)`;
+    case "triangle": return `${f(x.base)} × ${f(x.h)} ÷ 2 (triangle)`;
+    case "trapezoid": return `(${f(x.a)} + ${f(x.b)}) ÷ 2 × ${f(x.h)} (trapezoid)`;
+    case "segment": return `curved wall, chord ${f(x.chord)}, rise ${f(x.rise)}, radius ${f(x.radius)}`;
+    case "polygon": return "by coordinates (walls cross)";
+    default: return "balance";
+  }
+}
+// Every sized area's working as plain text, to paste into the workfile.
+function breakdownReport() {
+  const n2 = v => v.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), u = areaUnitLabel();
+  const out = ["Area breakdown" + (S.info.address ? " — " + [S.info.address, S.info.city].filter(Boolean).join(", ") : ""),
+    `Lengths in ${S.units === "m" ? "metres" : "feet"}, areas in ${u}.`];
+  let head = "";
+  for (const a of S.areas.filter(a => isCalc(a) && countOf(a) !== "display")) {
+    const h = a.category === "site" || isSiteImp(a) ? "Site" : [a.building || "(no building)", a.level].filter(Boolean).join(" — ");
+    if (h !== head) { out.push("", h); head = h; }
+    const list = breakdownOf(a), net = netAreaOf(a);
+    out.push(`  ${a.name} (${CAT[a.category].label}) : ${n2(areaOf(a))} ${u}`);
+    for (const x of list) out.push(`    ${x.area < 0 ? "less " : ""}${breakdownText(x, n2)} = ${n2(Math.abs(x.area))}`);
+    if (factorOf(a) !== 1 || a.negative) out.push(`    ${n2(areaOf(a))} × ${a.negative ? "−" : ""}${factorOf(a).toFixed(2)} = ${n2(net)} net`);
+  }
+  return out.join("\n");
+}
 
 // ---------------------------------------------------------------- formatting
 function fmtNum(v, d) { return (+v.toFixed(d)).toString(); }
@@ -2320,8 +2416,10 @@ function renderCalcs() {
         if ((a.ceilings || []).length) kv.push(["Ceiling", esc(fmtCeilings(a))]);
         if (a.category !== "site" && !a.included && inTotals(a)) kv.push(["Building area", "not counted"]);
         if (!inTotals(a)) kv.push(["Totals", COUNT_MODES[countOf(a)] + " (not added)"]);
+        // The working behind the base area, piece by piece, under it.
+        const work = breakdownOf(a).map(x => `<div class="kv bk${x.area < 0 ? " neg" : ""}">${x.area < 0 ? "less " : ""}${breakdownText(x, n2)} = ${n2(Math.abs(x.area))}</div>`).join("");
         leaves += node("a:" + a.id, `${esc(a.name)} : <span class="${net < 0 ? "neg" : ""}">${n2(net)}</span>`,
-          kv.map(([l, v]) => `<div class="kv">${l} : ${v}</div>`).join(""), isSel ? "sel" : "", a.id);
+          kv.map(([l, v]) => `<div class="kv">${l} : ${v}</div>${l === "Base area" ? work : ""}`).join(""), isSel ? "sel" : "", a.id);
       }
       const sum = list.filter(inTotals).reduce((s, a) => s + netAreaOf(a), 0);
       inner += b === "Site" ? leaves : node("c:" + b + "|" + k, `${esc(CAT[k].label)} : ${n2(sum)}`, leaves);
@@ -2720,6 +2818,16 @@ function areasJson() {
       totals: { "": "counted", own: "shown_on_its_own", display: "display_only" }[countOf(a)],
       combined_as: groupOf(a, groups) ? a.group.trim() : null,
       base_area: both(areaOf(a)), factor: factorOf(a), negative: !!a.negative,
+      // The working behind base_area: pieces whose areas (a deduction is negative) add up to it.
+      breakdown: breakdownOf(a).map(x => {
+        const o = { shape: x.shape };
+        if (x.shape === "rectangle") { o.width = len(x.w); o.height = len(x.h); }
+        else if (x.shape === "trapezoid") { o.parallel_sides = [len(x.a), len(x.b)]; o.height = len(x.h); }
+        else if (x.shape === "segment") { o.chord = len(x.chord); o.rise = len(x.rise); o.radius = len(x.radius); o.angle_deg = Math.round(x.angle * 10) / 10; }
+        else if (x.base !== undefined) { o.base = len(x.base); o.height = len(x.h); }
+        o.area = both(x.area);
+        return o;
+      }),
       area: both(netAreaOf(a)),
       type: { "": "heated", unheated: "unheated", covered: "covered" }[storageOf(a)],
       year_built: a.yearBuilt || null,
@@ -3638,6 +3746,11 @@ $("bAreas").onclick = () => {
   if (!needAreas()) return;
   saveFile(baseName() + " areas.json", new Blob([JSON.stringify(areasJson(), null, 2)], { type: "application/json" }),
     "Areas", "application/json", ".json");
+};
+$("bWork").onclick = async () => {
+  if (!needAreas()) return;
+  try { await navigator.clipboard.writeText(breakdownReport()); status("Area breakdown copied: paste it into Word or the workfile (Ctrl+V)."); }
+  catch (err) { status("Couldn't copy: " + err.message, "bad"); }
 };
 // Print (and Save as PDF): one sheet per page, at the paper and margins chosen.
 $("bPrint").onclick = () => {
