@@ -1,6 +1,6 @@
 # JKS Sketch
 
-Status: Active | Next: make the repo public | Blocked: none | Updated: 2026-11-27
+Status: Active | Next: tbd | Blocked: none | Updated: 2026-11-27
 
 Re-enters a hand-drawn field sketch as a clean, dimensioned plan with computed
 areas. One self-contained file, `sketch.html`: open it in Edge or Chrome
