@@ -15,7 +15,7 @@ Licence: MIT (see `LICENSE`).
 
 ## Toolbar
 
-One row on a laptop screen. Always visible: *File* menu (New, Open, Recover)
+One row on a laptop screen. Always visible: *File* menu (New, Open, Recover, Versions)
 and *Save*; the tools (Draw, Select, Label, Door/Window, Symbol, Measure,
 Tape, Photo) and the *Laser* menu (DISTO); Undo, Redo, the *Edit* menu (select all, copy, paste, delete, rotate),
 *Fit* and *auto*; the page and level being shown; *View* (units, dimension
@@ -24,7 +24,7 @@ format and decimals, what area labels show, the area library); *Underlay*
 areas.json, and page setup: paper, orientation, scale, smallest text, image
 dpi, area table); *Print*; Help.
 
-**Version.** The version (now 1.3, 2026-11-27) shows next to the name, in
+**Version.** The version (now 1.4, 2026-11-27) shows next to the name, in
 Help, at the foot of every exported page, in saved sketches (`saved_with`)
 and in `areas.json` (`generator`), so a shared copy can be told apart. It's
 `APP_VERSION` near the top of the script; bump it with each release.
@@ -346,6 +346,19 @@ default, auto-fit, and anything copied, so it can be pasted into the new job.
 the cursor out of the command box, and with Draw on, typing anywhere goes to
 it. A length waiting for its arrow shows on the plan beside the corner
 (`50  → ← ↑ ↓`).
+
+**Versions.** Every *Save* keeps the sketch as it was at that moment inside the
+saved file (`versions` in the `.sketch.json`, oldest first; each holds the
+time, the app version, the number of areas, the building area and the whole
+drawing). *File ▸ Versions…* lists them newest first; *Open* puts one on
+screen, and Undo brings back what was there. Nothing is ever removed: save
+again and the reopened version becomes the newest. A Save with no change since
+the last one adds nothing, and a cancelled Save isn't kept. The underlay image
+isn't versioned (the file holds it once), and the file keeps the last 100
+versions. Saving over the same file each time is what builds the history; the
+browser also remembers it for the sketches in the Recover list, so a reload
+before the next Save doesn't lose it. A sketch saved before 1.4 starts its
+history at its next Save.
 
 **Recover.** Besides the current sketch, the browser keeps the last dozen
 sketches you worked on. *File ▸ Recover…* lists them (file, site, areas, last change)

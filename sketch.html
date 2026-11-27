@@ -124,11 +124,12 @@
     overflow: auto; z-index: 10;
   }
   #lib td input[type=text] { width: 100%; }
-  #recover {
+  #recover, #versions {
     position: fixed; inset: 60px max(16px, 15%); background: #fff; border: 1px solid var(--line);
     border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.2); padding: 16px 22px; overflow: auto; z-index: 10;
   }
-  #recover td { padding: 4px 6px; }
+  #recover td, #versions td, #versions th { padding: 4px 6px; text-align: left; }
+  #versions td.n, #versions th.n { text-align: right; }
   #lib td input[data-f=label] { min-width: 170px; }
   #lib td input[type=number] { width: 64px; }
   #fence { fill: rgba(37,99,235,.08); stroke: #2563eb; stroke-dasharray: 4 3; }
@@ -146,7 +147,7 @@
   #printArea { display: none; }
   @media print {
     body { display: block; background: #fff; }
-    header, #stage, aside, footer, #help, #lib, #recover { display: none !important; }
+    header, #stage, aside, footer, #help, #lib, #recover, #versions { display: none !important; }
     #printArea { display: block; }
     /* Each sheet is already the page's printable size, in inches. */
     #printArea .sheet { break-after: page; break-inside: avoid; }
@@ -162,6 +163,7 @@
       <button id="bNew" title="Start a new sketch">New</button>
       <button id="bOpen" title="Open a .sketch.json file">Open…</button>
       <button id="bRecover" title="Reopen one of the last sketches this browser kept">Recover…</button>
+      <button id="bVersions" title="Earlier saves of this sketch, kept inside its file">Versions…</button>
     </div></details>
     <button id="bSave" title="Save the editable .sketch.json">Save</button>
   </div>
@@ -425,6 +427,11 @@
   categories: they're totalled on their own, never as building area. <b>Site coverage</b> is building footprint ÷ site area; an area's
   <b>Footprint</b> box (under Selected, set from its category: on for main floors, garages, warehouses…, off for upper floors,
   basements, mezzanines, decks) says whether the ground it covers counts.</p>
+  <h3>Versions</h3>
+  <p>Every <b>Save</b> keeps the sketch as it was at that moment inside the saved file. <b>File ▸ Versions…</b> lists them, newest
+  first, with the time, the number of areas and the building area; <b>Open</b> puts one on screen (Undo brings back what was there).
+  Nothing is removed: save again and the reopened version becomes the newest. A Save with no change since the last adds nothing. The
+  underlay image isn't versioned, and the file keeps the last 100 versions.</p>
   <h3>Recover</h3>
   <p><b>Recover…</b> reopens one of the last dozen sketches this browser worked on, as they were at their last change. It's a safety
   net; <b>Save</b> is the record.</p>
@@ -480,6 +487,14 @@
   net, not a record: <b>Save</b> is the record. Opening one replaces what's on screen (Undo brings it back).</p>
   <table id="recoverTable"></table>
   <div class="btns"><button id="recoverClose">Close</button></div>
+</div>
+<div id="versions" hidden>
+  <h2 style="margin-top:0">Versions of this sketch</h2>
+  <p class="hint">Every <b>Save</b> keeps the sketch as it was at that moment inside the saved file, newest first. Opening an
+  earlier one puts it on screen (Undo brings back what was there); nothing is removed, and the next Save adds it as the newest
+  version. The underlay image isn't versioned.</p>
+  <table id="versionsTable"></table>
+  <div class="btns"><button id="versionsClose">Close</button></div>
 </div>
 <div id="lib" hidden>
   <h2 style="margin-top:0">Area library</h2>
@@ -595,7 +610,7 @@ const FT_TO_M = 0.3048;
 const EPS = 1e-6;
 // Shown in the toolbar, in Help, at the foot of every exported page and in
 // saved files, so a shared copy can be told apart. Bump with each release.
-const APP_VERSION = "1.3", APP_DATE = "2026-11-27";
+const APP_VERSION = "1.4", APP_DATE = "2026-11-27";
 const AUTOSAVE_KEY = "jks-sketch-autosave-v1";
 // Besides the current sketch, the last few sketches are kept in the browser so
 // starting a new one (or a mistake) can't lose unsaved work: Recover lists them.
@@ -1335,6 +1350,35 @@ function keepRecent() {
     try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); return; }
     catch (e) { if (list.length === 1) return; list = list.slice(0, -1); }
   }
+}
+// Versions: every Save keeps the sketch as it then was, and the list travels
+// inside the saved file (data.versions), oldest first. In memory the lists are
+// held by sketch uid, so Undo across an Open or a Recover finds the right one;
+// the browser keeps a copy for the sketches in the recent list, so a reload
+// before the next Save doesn't lose the history.
+const VERSIONS_KEY = "jks-sketch-versions-v1", VERSIONS_MAX = 100;
+let verStore = {};
+try { verStore = JSON.parse(localStorage.getItem(VERSIONS_KEY)) || {}; } catch (e) { verStore = {}; }
+const versionsOf = () => Array.isArray(verStore[S.uid]) ? verStore[S.uid] : (verStore[S.uid] = []);
+function keepVersions() {
+  const keep = new Set([S.uid, ...recentList().map(r => r.uid)]);
+  // Only the stored copy is thinned: in memory every history opened this session stays, for Undo.
+  // Browser storage is limited: drop other sketches' histories until it fits (the files still hold them).
+  const out = Object.fromEntries(Object.entries(verStore).filter(([k, v]) => keep.has(k) && v.length));
+  for (;;) {
+    try { localStorage.setItem(VERSIONS_KEY, JSON.stringify(out)); return; }
+    catch (e) { const k = Object.keys(out).find(k => k !== S.uid) || Object.keys(out)[0]; if (!k) return; delete out[k]; }
+  }
+}
+// Add the sketch as it is now to its versions (unless nothing changed since the last one). Returns the entry added.
+function addVersion() {
+  const list = versionsOf(), snap = snapshot();
+  if (list.length && list[list.length - 1].data === snap) return null;
+  const v = { saved: new Date().toISOString(), app: `JKS Sketch ${APP_VERSION}`, areas: S.areas.filter(isCalc).length,
+    building_area: fmtArea(totals().buildings.reduce((t, b) => t + b.gba, 0)), data: snap };
+  list.push(v);
+  while (list.length > VERSIONS_MAX) list.shift();
+  return v;
 }
 function pushHistory() { history.push(snapshot()); if (history.length > 200) history.shift(); future = []; }
 function undo() {
@@ -3054,15 +3098,17 @@ async function saveFile(name, blob, desc, mime, ext) {
     try {
       const h = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: desc, accept: { [mime]: [ext] } }] });
       const w = await h.createWritable(); await w.write(blob); await w.close();
-      return status(`Saved ${h.name}.`, "ok");
+      status(`Saved ${h.name}.`, "ok");
+      return true;
     } catch (e) {
-      if (e.name === "AbortError") return;
+      if (e.name === "AbortError") return false;
     }
   }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   status(`Downloaded ${name}.`, "ok");
+  return true;
 }
 function needAreas() { if (!S.areas.length) { status("Nothing to export yet.", "bad"); return false; } return true; }
 
@@ -3130,7 +3176,7 @@ function laserReading(m) {
   const v = step ? Math.round(raw / step) * step : raw, text = (+v.toFixed(4)).toString();
   if (!(+text > 0)) return status(`DISTO ${fmtLen(raw)}: too short to use at this rounding.`, "bad");
   const shown = text + (S.units === "m" ? " m" : "'"), ae = document.activeElement;
-  if (!$("help").hidden || !$("lib").hidden || !$("recover").hidden || (ae && ae !== cmd && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)))
+  if (!$("help").hidden || !$("lib").hidden || !$("recover").hidden || !$("versions").hidden || (ae && ae !== cmd && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)))
     return status(`DISTO ${shown} (not used: finish what's open first).`);
   if (tool !== "draw" || !draw) return status(`DISTO ${shown} (not used: choose Draw and click the start corner first).`);
   const p = draw.points, n = p.length;
@@ -3331,6 +3377,7 @@ document.addEventListener("keydown", e => {
     if (!$("help").hidden) return showHelp(false);
     if (!$("lib").hidden) { $("lib").hidden = true; return; }
     if (!$("recover").hidden) { $("recover").hidden = true; return; }
+    if (!$("versions").hidden) { $("versions").hidden = true; return; }
     if (activeVertex) { activeVertex = null; status(""); return render(); }
     if (tape) { tape = null; status("Measurement cleared."); return render(); }
     if (draw) { draw = null; status("Area cancelled."); }
@@ -3964,12 +4011,16 @@ $("units").onchange = () => {
   draw = null; syncInfoFields(); commit();
   status(`Converted to ${to === "m" ? "metres" : "feet"}.`, "ok");
 };
-$("bSave").onclick = () => {
-  const data = JSON.parse(snapshot());
+$("bSave").onclick = async () => {
+  const data = JSON.parse(snapshot()), added = addVersion(), list = versionsOf();
   if (underlay) data.underlay = underlay;
   data.saved_with = `JKS Sketch ${APP_VERSION}`;
-  saveFile(baseName() + ".sketch.json", new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }),
+  data.versions = list;
+  const ok = await saveFile(baseName() + ".sketch.json", new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }),
     "JKS sketch", "application/json", ".json");
+  // A save that was cancelled isn't a version.
+  if (!ok && added && list[list.length - 1] === added) list.pop();
+  keepVersions();
 };
 $("bOpen").onclick = () => $("fOpen").click();
 $("fOpen").onchange = async () => {
@@ -3979,8 +4030,13 @@ $("fOpen").onchange = async () => {
     if (data.format !== "jks-sketch") throw new Error("not a JKS sketch file (areas.json is an output — open the .sketch.json)");
     pushHistory();
     underlay = data.underlay || null; delete data.underlay;
+    // The file's versions are the record for this sketch.
+    const vers = Array.isArray(data.versions) ? data.versions.filter(v => v && typeof v.data === "string") : [];
+    delete data.versions;
     S = Object.assign(emptySketch(), data);
-    draw = null; setSel(null); viewLevel = ""; afterLoad(); fit(); status(`Opened ${f.name}.`, "ok");
+    draw = null; setSel(null); viewLevel = ""; afterLoad(); fit();
+    verStore[S.uid] = vers; keepVersions();
+    status(`Opened ${f.name}${vers.length > 1 ? ` (${vers.length} versions inside: File ▸ Versions)` : ""}.`, "ok");
   } catch (err) { status("Could not open: " + err.message, "bad"); }
 };
 $("bImg").onclick = () => $("fImg").click();
@@ -4166,6 +4222,35 @@ $("recoverTable").addEventListener("click", e => {
   draw = null; setSel(null); viewLevel = ""; afterLoad(); fit();
   $("recover").hidden = true;
   status(`Recovered ${r.label}. Save it to keep it.`, "ok");
+});
+
+// ---------------------------------------------------------------- versions
+$("bVersions").onclick = () => {
+  const list = versionsOf(), now = snapshot();
+  $("versionsTable").innerHTML = list.length
+    ? `<tr><th>Saved</th><th class="n">Areas</th><th class="n">Building area</th><th>Saved with</th><th></th></tr>` +
+      list.map((v, i) => ({ v, i })).reverse().map(({ v, i }) =>
+        `<tr><td>${esc(new Date(v.saved).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" }))}` +
+        `${v.data === now ? ' <span class="hint">(on screen)</span>' : i === list.length - 1 ? ' <span class="hint">(latest save)</span>' : ""}</td>` +
+        `<td class="n">${+v.areas || 0}</td><td class="n">${esc(v.building_area || "")}</td><td>${esc(v.app || "")}</td>` +
+        `<td><button data-ver="${i}"${v.data === now ? " disabled" : ""}>Open</button></td></tr>`).join("")
+    : `<tr><td class="hint">No versions yet: each Save adds one. A sketch saved before version 1.4 starts its history at its next Save.</td></tr>`;
+  $("versions").hidden = false;
+};
+$("versionsClose").onclick = () => { $("versions").hidden = true; cmd.focus(); };
+$("versionsTable").addEventListener("click", e => {
+  const i = e.target.dataset.ver;
+  if (i === undefined) return;
+  const v = versionsOf()[+i];
+  if (!v) return;
+  let d;
+  try { d = JSON.parse(v.data); } catch (err) { return status("That version can't be read.", "bad"); }
+  pushHistory();
+  const uid = S.uid;
+  S = Object.assign(emptySketch(), d); S.uid = uid;   // still the same sketch, with the same history
+  draw = null; setSel(null); viewLevel = ""; afterLoad(); fit();
+  $("versions").hidden = true;
+  status(`Version saved ${new Date(v.saved).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })} is on screen. Save keeps it as the newest version; Undo goes back.`, "ok");
 });
 
 // ---------------------------------------------------------------- pages
