@@ -47,6 +47,7 @@
     box-shadow: 0 8px 24px rgba(0,0,0,.15);
   }
   details.menu .pop.wide { min-width: 280px; }
+  details.menu.live > summary { border-color: #16a34a; color: #15803d; font-weight: 600; }
   details.menu .pop > button { text-align: left; }
   details.menu .prow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   details.menu .phead { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
@@ -175,6 +176,14 @@
     <button id="tMeasure" title="Measure: click two points for a dimension line (setbacks, spacing); Shift keeps it square">Measure</button>
     <button id="tTape" title="Tape: click a run of points for each leg and the total; click the start again to close it and read the area. Nothing is drawn on the plan">Tape</button>
     <button id="tPhoto" title="Photo: click where a photo was taken and drag the way it faces">Photo</button>
+    <details class="menu" id="laserMenu"><summary title="Leica DISTO laser over Bluetooth: each measurement becomes the next wall's length">Laser</summary><div class="pop wide">
+      <button id="bLaser" title="Pick the DISTO from the list the browser shows (Edge or Chrome, with Bluetooth on)">Connect DISTO…</button>
+      <div class="prow"><span>A reading</span><select id="laserMode" title="What a measurement does while drawing">
+        <option value="fill">fills the length (then press an arrow)</option><option value="go">draws the wall straight on</option></select></div>
+      <div class="prow"><span>Round to</span><select id="laserRound" title="Round each reading, in the drawing's units">
+        <option value="0">as measured</option><option value="0.01">0.01</option><option value="0.1">0.1</option><option value="0.5">0.5</option><option value="1">1</option></select></div>
+      <div class="hint" id="laserState">Not connected.</div>
+    </div></details>
   </div>
   <div class="grp">
     <button id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
@@ -398,6 +407,13 @@
   height, swing <b>out</b> instead of into the room, and <b>⇄</b> to hinge at the other jamb. Openings move, rotate and
   mirror with their area and never change an area. Click a symbol in the palette, then click the plan to place it (keep clicking
   for more). Symbols are drawn at real size; select one to rotate it (⟲ ⟳ or any angle) or resize it.</p>
+  <h3>DISTO laser</h3>
+  <p><b>Laser ▸ Connect DISTO…</b> (Edge or Chrome, Bluetooth on, the DISTO awake with its Bluetooth on) lists the DISTO; pick it. No
+  Windows pairing is needed. With <b>Draw</b> on and a start corner clicked, each measurement taken with the DISTO's own button lands in
+  the command line as the next wall's length: press an arrow for its direction, as with a typed length. A new reading replaces one still
+  waiting for its arrow. Set <b>A reading</b> to <i>draws the wall straight on</i> and each measurement is drawn at once along the line of
+  the wall before (the first wall still needs its arrow); Backspace takes a wall back. <b>Round to</b> rounds each reading in the drawing's
+  units. A reading taken at any other time is shown in the status bar and not used. The menu's name turns green while connected.</p>
   <h3>Measure and photos</h3>
   <p><b>Measure</b>: click one point, then another, for a dimension line (setbacks, spacing between buildings, apron depth); Shift keeps it
   square. Give it a label (e.g. Setback) under Selected. <b>Tape</b> checks a distance without drawing anything: click a run of points
@@ -579,7 +595,7 @@ const FT_TO_M = 0.3048;
 const EPS = 1e-6;
 // Shown in the toolbar, in Help, at the foot of every exported page and in
 // saved files, so a shared copy can be told apart. Bump with each release.
-const APP_VERSION = "1.2", APP_DATE = "2026-11-27";
+const APP_VERSION = "1.3", APP_DATE = "2026-11-27";
 const AUTOSAVE_KEY = "jks-sketch-autosave-v1";
 // Besides the current sketch, the last few sketches are kept in the browser so
 // starting a new one (or a mistake) can't lose unsaved work: Recover lists them.
@@ -3052,6 +3068,95 @@ function needAreas() { if (!S.areas.length) { status("Nothing to export yet.", "
 
 // ---------------------------------------------------------------- status
 function status(msg, cls) { const s = $("status"); s.textContent = msg || ""; s.className = cls || ""; }
+
+// ---------------------------------------------------------------- DISTO laser
+// A Leica DISTO over Web Bluetooth (Edge or Chrome). The DISTO sends each
+// measurement on its distance characteristic as a little-endian float32 in
+// metres, whatever units its own screen shows. Only that characteristic is
+// listened to; nothing is ever written to the instrument.
+const LEICA_SERVICE = "3ab10100-f831-4395-b29d-570977d5bf94", LEICA_DISTANCE = "3ab10101-f831-4395-b29d-570977d5bf94";
+const LASER_KEY = "jks-sketch-laser-v1";
+let laser = null;   // { device } while connected
+function laserUi(msg) {
+  const name = laser ? laser.device.name || "DISTO" : "";
+  $("laserMenu").classList.toggle("live", !!laser);
+  $("bLaser").textContent = laser ? "Disconnect " + name : "Connect DISTO…";
+  $("laserState").textContent = msg || (laser ? `Connected to ${name}. Measure with the DISTO's own button.` : "Not connected.");
+}
+async function laserConnect() {
+  if (laser) {
+    const d = laser.device; laser = null;
+    try { d.gatt.disconnect(); } catch (e) {}
+    laserUi(); return status("DISTO disconnected.");
+  }
+  if (!navigator.bluetooth) {
+    laserUi("This browser can't reach Bluetooth from this page.");
+    return status("Bluetooth isn't available here: use Edge or Chrome on a computer with Bluetooth switched on.", "bad");
+  }
+  let device;
+  try {
+    device = await navigator.bluetooth.requestDevice({ filters: [{ services: [LEICA_SERVICE] }, { namePrefix: "DISTO" }], optionalServices: [LEICA_SERVICE] });
+  } catch (err) {
+    return err.name === "NotFoundError" ? status("No DISTO chosen.") : status("Bluetooth: " + err.message, "bad");
+  }
+  try {
+    laserUi("Connecting…"); status(`Connecting to ${device.name || "the DISTO"}…`);
+    const server = await device.gatt.connect(), svc = await server.getPrimaryService(LEICA_SERVICE), ch = await svc.getCharacteristic(LEICA_DISTANCE);
+    ch.addEventListener("characteristicvaluechanged", e => {
+      const v = e.target.value;
+      if (laser && laser.device === device && v && v.byteLength >= 4) laserReading(v.getFloat32(0, true));
+    });
+    await ch.startNotifications();
+    // Out of range, switched off or asleep: say so, and stop showing it as connected.
+    device.addEventListener("gattserverdisconnected", () => {
+      if (!laser || laser.device !== device) return;
+      laser = null; laserUi();
+      status("DISTO disconnected (asleep, switched off or out of range). Connect it again from the Laser menu.", "bad");
+    });
+    laser = { device }; laserUi();
+    status(`${device.name || "DISTO"} connected. With Draw on and a start corner clicked, each measurement becomes the next wall's length.`, "ok");
+  } catch (err) {
+    try { device.gatt.disconnect(); } catch (e) {}
+    laser = null; laserUi("Couldn't connect: " + err.message);
+    status("Couldn't connect to the DISTO: " + err.message, "bad");
+  }
+}
+// One measurement, in metres. While a wall is being drawn it fills the command
+// line (an arrow then draws it), or, set to draw straight on, becomes a wall
+// along the line of the wall before. Anywhere else it is only shown.
+function laserReading(m) {
+  if (!Number.isFinite(m) || m <= 0) return;
+  const step = parseFloat($("laserRound").value) || 0, raw = S.units === "m" ? m : m / FT_TO_M;
+  const v = step ? Math.round(raw / step) * step : raw, text = (+v.toFixed(4)).toString();
+  if (!(+text > 0)) return status(`DISTO ${fmtLen(raw)}: too short to use at this rounding.`, "bad");
+  const shown = text + (S.units === "m" ? " m" : "'"), ae = document.activeElement;
+  if (!$("help").hidden || !$("lib").hidden || !$("recover").hidden || (ae && ae !== cmd && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)))
+    return status(`DISTO ${shown} (not used: finish what's open first).`);
+  if (tool !== "draw" || !draw) return status(`DISTO ${shown} (not used: choose Draw and click the start corner first).`);
+  const p = draw.points, n = p.length;
+  if ($("laserMode").value === "go" && n >= 2 && !cmd.value.trim()) {
+    const a = p[n - 2], b = p[n - 1], L = dist(a, b);
+    const res = applyOps([{ op: "seg", dx: (b[0] - a[0]) / L * v, dy: (b[1] - a[1]) / L * v, rise: 0 }]);
+    ghost = [];
+    if (res.err) { status(res.err, "bad"); return render(); }
+    status(res.msg || `DISTO ${shown}: wall drawn straight on. Backspace takes it back.`, "ok");
+    renderPanel();
+    return $("autoFit").checked ? fit() : render();
+  }
+  // Fill the length: after a direction letter typed first (R becomes R12.5), in
+  // place of a length still waiting for its arrow, or as the next wall.
+  const toks = cmd.value.trim().split(/\s+/).filter(Boolean), last = toks[toks.length - 1] || "";
+  if (/^[UDLR]$/i.test(last)) toks[toks.length - 1] = last + text;
+  else if (last && /^[\d.]/.test(last) && parseLen(last) > 0) toks[toks.length - 1] = text;
+  else toks.push(text);
+  cmd.value = toks.join(" "); cmd.focus(); cmd.dispatchEvent(new Event("input"));
+  status(`DISTO ${shown}: press an arrow for its direction${n < 2 && $("laserMode").value === "go" ? " (the first wall needs one)" : ""}.`, "ok");
+}
+$("bLaser").onclick = laserConnect;
+try { const o = JSON.parse(localStorage.getItem(LASER_KEY)) || {}; if (o.mode) $("laserMode").value = o.mode; if (o.round) $("laserRound").value = o.round; } catch (e) {}
+for (const id of ["laserMode", "laserRound"]) $(id).onchange = () => {
+  try { localStorage.setItem(LASER_KEY, JSON.stringify({ mode: $("laserMode").value, round: $("laserRound").value })); } catch (e) {}
+};
 
 // ---------------------------------------------------------------- tools
 function setTool(t) {

@@ -1,6 +1,6 @@
 # JKS Sketch
 
-Status: Active | Next: try the area breakdown, chained dimensions, room shapes and Tape on a real job sketch | Blocked: none | Updated: 2026-11-27
+Status: Active | Next: connect a real DISTO and measure a known length; try 1.1 to 1.3 on a real job sketch | Blocked: none | Updated: 2026-11-27
 
 Re-enters a hand-drawn field sketch as a clean, dimensioned plan with computed
 areas. One self-contained file, `sketch.html`: open it in Edge or Chrome
@@ -17,14 +17,14 @@ Licence: MIT (see `LICENSE`).
 
 One row on a laptop screen. Always visible: *File* menu (New, Open, Recover)
 and *Save*; the tools (Draw, Select, Label, Door/Window, Symbol, Measure,
-Tape, Photo); Undo, Redo, the *Edit* menu (select all, copy, paste, delete, rotate),
+Tape, Photo) and the *Laser* menu (DISTO); Undo, Redo, the *Edit* menu (select all, copy, paste, delete, rotate),
 *Fit* and *auto*; the page and level being shown; *View* (units, dimension
 format and decimals, what area labels show, the area library); *Underlay*
 (load, calibrate, move, opacity, rotation, remove); *Export* (SVG, PNG, JPG,
 areas.json, and page setup: paper, orientation, scale, smallest text, image
 dpi, area table); *Print*; Help.
 
-**Version.** The version (now 1.2, 2026-11-27) shows next to the name, in
+**Version.** The version (now 1.3, 2026-11-27) shows next to the name, in
 Help, at the foot of every exported page, in saved sketches (`saved_with`)
 and in `areas.json` (`generator`), so a shared copy can be told apart. It's
 `APP_VERSION` near the top of the script; bump it with each release.
@@ -416,7 +416,32 @@ chosen *paper* and orientation less a 0.4" margin, or *Report figure*
 - Site coverage adds footprints; two footprint areas drawn on top of each
   other on the same ground count twice.
 
-## Future features
+## DISTO laser input
 
-- **DISTO laser input**: a Leica DISTO over Web Bluetooth in Edge/Chrome filling
-  the wall length as you measure.
+*Laser ▸ Connect DISTO…* links a Leica DISTO over Web Bluetooth (Edge or
+Chrome, Bluetooth on, the DISTO awake with its own Bluetooth on). The browser
+lists the DISTO; pick it. No Windows pairing is needed, and the choice is asked
+again each time the page is opened.
+
+- With *Draw* on and a start corner clicked, each measurement taken with the
+  DISTO's own button lands in the command line as the next wall's length. Press
+  an arrow for its direction, exactly as with a typed length. A new reading
+  replaces one still waiting for its arrow; after a direction letter typed
+  first (`R`), it completes it (`R12.5`).
+- *A reading ▸ draws the wall straight on*: each measurement is drawn at once
+  along the line of the wall before. The first wall still needs its arrow.
+  Backspace takes a wall back.
+- *Round to* rounds each reading (0.01, 0.1, 0.5 or 1) in the drawing's units.
+  The DISTO always sends metres, whatever its screen shows; the reading is
+  converted to feet when the drawing is in feet.
+- A reading is shown in the status bar and not used when Draw isn't on, no
+  start corner is set, Help or a dialog is open, or a panel field is being
+  edited.
+- The *Laser* menu's name turns green while connected. If the DISTO sleeps or
+  goes out of range the status bar says so; connect again from the menu.
+
+The app only listens to the DISTO's distance value and never writes to the
+instrument. The protocol (Leica service `3ab10100-…`, distance characteristic
+`3ab10101-…`, a little-endian 32-bit float in metres) is the one measured on an
+E7500i / D510. **Not yet tried on a real DISTO from this app**: the reading
+handling is tested with simulated measurements only.
