@@ -173,6 +173,7 @@
     <button id="tOpening" title="Door / window: click a wall to place the opening chosen in the panel">Door/Window</button>
     <button id="tSymbol" title="Symbol: click to place the symbol chosen in the panel">Symbol</button>
     <button id="tMeasure" title="Measure: click two points for a dimension line (setbacks, spacing); Shift keeps it square">Measure</button>
+    <button id="tTape" title="Tape: click a run of points for each leg and the total; click the start again to close it and read the area. Nothing is drawn on the plan">Tape</button>
     <button id="tPhoto" title="Photo: click where a photo was taken and drag the way it faces">Photo</button>
   </div>
   <div class="grp">
@@ -363,6 +364,7 @@
     <tr><td><code>17&gt;45</code> <code>17&lt;30</code> <code>17&gt;</code></td><td>Turn: 17 long, turning right (<code>&gt;</code>) or left (<code>&lt;</code>) 45° off the line of the previous wall. No angle = 90°. Walls at odd angles without trigonometry.</td></tr>
     <tr><td><code>U=</code> <code>L=</code></td><td>Run up (left…) until level with the start, so the closing wall comes out square. For a field sketch with one dimension missing.</td></tr>
     <tr><td><code>U*</code> <code>R*</code></td><td>Run up (right…) until the wall meets an existing wall, or one of this area's own.</td></tr>
+    <tr><td><code>40x28</code> <code>40x28c10x8</code></td><td>A whole room at once, from its lower-left corner: a rectangle 40 across and 28 up, closed. <code>c10x8</code> cuts a 10 × 8 corner out of it for an L: the top right, or add <code>ne</code> <code>nw</code> <code>se</code> <code>sw</code> (<code>40x28c10x8sw</code>).</td></tr>
     <tr><td><code>CW</code></td><td>Close along existing walls: from the last corner, follow the walls already drawn back to the start. An addition needs only its own walls: start on the building (click a corner, or <code>mR10</code>), type the new walls, end on the building, <code>CW</code>. The traced walls' dimensions are hidden, since the building already shows them.</td></tr>
     <tr><td><code>20@135</code></td><td>Wall of length 20 at 135° (0° = right, 90° = up, counter-clockwise).</td></tr>
     <tr><td><code>N45-30E120.5</code></td><td>Survey bearing N 45°30′ E, 120.5 long (for lot lines). <code>S12E</code>, <code>N89-59-30W</code> etc.</td></tr>
@@ -376,7 +378,7 @@
     <tr><td><b>Arrows</b> (empty line)</td><td>Nudge the selection by the grid snap; Shift = ×10.</td></tr>
     <tr><td><b>Delete</b> (empty line)</td><td>Delete the selection.</td></tr>
     <tr><td><b>Ctrl+A</b> / <b>Ctrl+C</b> / <b>Ctrl+V</b></td><td>Select everything shown / copy / paste. With one level shown, paste puts the copy on that level in place: copy the main floor, show Upper, paste.</td></tr>
-    <tr><td>Select tool</td><td>Click to select; <b>Shift+click</b> adds; drag on empty space draws a fence around what to select. Click a dimension to hide it (or show it again).</td></tr>
+    <tr><td>Select tool</td><td>Click to select; <b>Shift+click</b> adds; drag on empty space draws a fence around what to select. Click a dimension to hide it (or show it again). <b>Shift+click a dimension</b> to chain it: one dimension line outside the wall, with each span along that line of walls (adjoining areas included) and the overall length; it follows the walls as they change. Click a chained dimension to remove it.</td></tr>
     <tr><td><b>R</b> (Shift+R; Ctrl: 5°)</td><td>Turn the selection 15° clockwise (counter-clockwise); hold Ctrl for 5°. With Draw on, labels and symbols only.
       The page's corner north arrow turns with the ⟲ / ⟳ 15° buttons under View → North points (Ctrl-click: 5°). Ctrl-click any rotate button for 5°.</td></tr>
     <tr><td><b>[</b> <b>]</b> (Ctrl or Shift: 5°)</td><td>Turn the selection 15° counter-clockwise / clockwise (5° with Shift); with nothing selected, the whole page and its north arrow.</td></tr>
@@ -398,7 +400,9 @@
   for more). Symbols are drawn at real size; select one to rotate it (⟲ ⟳ or any angle) or resize it.</p>
   <h3>Measure and photos</h3>
   <p><b>Measure</b>: click one point, then another, for a dimension line (setbacks, spacing between buildings, apron depth); Shift keeps it
-  square. Give it a label (e.g. Setback) under Selected. <b>Photo</b>: click where a photo was taken and drag the way the camera faced;
+  square. Give it a label (e.g. Setback) under Selected. <b>Tape</b> checks a distance without drawing anything: click a run of points
+  for each leg and the running total (Shift keeps a leg square, Backspace takes a point back); Enter or a double-click ends it, and
+  clicking the start again closes it and reads the area. Ctrl+C copies the result; Esc clears it. <b>Photo</b>: click where a photo was taken and drag the way the camera faced;
   markers number themselves (change the number under Selected) and are listed with their facing in <code>areas.json</code>.</p>
   <h3>Site improvements and coverage</h3>
   <p>Draw paving, gravel and landscaping in the <b>Asphalt paving</b>, <b>Concrete paving</b>, <b>Gravel</b> and <b>Landscaped</b>
@@ -575,7 +579,7 @@ const FT_TO_M = 0.3048;
 const EPS = 1e-6;
 // Shown in the toolbar, in Help, at the foot of every exported page and in
 // saved files, so a shared copy can be told apart. Bump with each release.
-const APP_VERSION = "1.1", APP_DATE = "2026-11-27";
+const APP_VERSION = "1.2", APP_DATE = "2026-11-27";
 const AUTOSAVE_KEY = "jks-sketch-autosave-v1";
 // Besides the current sketch, the last few sketches are kept in the browser so
 // starting a new one (or a mistake) can't lose unsaved work: Recover lists them.
@@ -618,6 +622,7 @@ let curPage = "p1";         // the page being shown and drawn on
 let clip = null;            // copied areas, labels and symbols
 let curSym = "stairs";      // the symbol the Symbol tool places
 let measureStart = null;    // the first point of a dimension line being placed
+let tape = null;            // the running measure: { pts, closed, done }. Never saved or exported
 let activeVertex = null;    // { id, i }: the corner handle last clicked (Delete removes it)
 let dimClickTimer = null;   // a single click on a dimension waits, in case it's a double-click
 let tool = "draw";
@@ -857,6 +862,7 @@ const RE_ANG = new RegExp(`^${LEN}@(-?)${DEG}$`);
 const RE_BRG = new RegExp(`^([NS])${DEG}([EW])${LEN}$`);
 const RE_TURN = new RegExp(`^${LEN}([<>])${DEG}?$`);
 const RE_RUN = /^([UDLR])([*=])$/;
+const RE_SHAPE = new RegExp(`^${LEN}X${LEN}(?:C${LEN}X${LEN}(NE|NW|SE|SW)?)?$`);
 const DIRV = { R: [1, 0], L: [-1, 0], U: [0, 1], D: [0, -1] };
 const DIRWORD = { R: "right", L: "left", U: "up", D: "down" };
 
@@ -1001,9 +1007,30 @@ function rayToWalls(from, u, own) {
   }
   return best;
 }
+// A whole room in one token, from its lower-left corner: 40x28 is a rectangle
+// 40 across and 28 up; 40x28c10x8 is an L, the rectangle with a 10 × 8 corner
+// cut out of it (top right unless NE, NW, SE or SW follows).
+function shapeOps(tok) {
+  const m = tok.toUpperCase().match(RE_SHAPE);
+  if (!m) return null;
+  const w = parseLen(m[1]), d = parseLen(m[2]);
+  if (!(w > 0 && d > 0)) return { err: `bad size in ${tok} (e.g. 40x28)` };
+  const seg = (dx, dy) => ({ op: "seg", dx, dy, rise: 0 }), close = { op: "close", curve: null };
+  if (!m[3]) return { ops: [seg(w, 0), seg(0, d), seg(-w, 0), close] };
+  const cw = parseLen(m[3]), cd = parseLen(m[4]);
+  if (!(cw > 0 && cd > 0 && cw < w - 1e-6 && cd < d - 1e-6)) return { err: `${tok}: the cut has to be smaller than the room (e.g. 40x28c10x8)` };
+  switch (m[5] || "NE") {
+    case "NE": return { ops: [seg(w, 0), seg(0, d - cd), seg(-cw, 0), seg(0, cd), seg(cw - w, 0), close] };
+    case "NW": return { ops: [seg(w, 0), seg(0, d), seg(cw - w, 0), seg(0, -cd), seg(-cw, 0), close] };
+    case "SE": return { ops: [seg(w - cw, 0), seg(0, cd), seg(cw, 0), seg(0, d - cd), seg(-w, 0), close] };
+    default: return { ops: [{ op: "move", dx: cw, dy: 0 }, seg(w - cw, 0), seg(0, d), seg(-w, 0), seg(0, cd - d), seg(cw, 0), close] };
+  }
+}
 function parseLine(line) {
   const toks = line.trim().split(/[\s,;]+/).filter(Boolean), ops = [];
   for (const tok of toks) {
+    const sh = shapeOps(tok);
+    if (sh) { if (sh.err) return { err: sh.err }; ops.push(...sh.ops); continue; }
     const r = parseToken(tok);
     if (r.err) return { err: r.err };
     ops.push(r);
@@ -1375,11 +1402,14 @@ function hitTest(w) {
   // A dimension: clicking one hides or shows it (screen-space test).
   if ($("showDims").checked) {
     const [px, py] = w2s(view, W(), H(), w[0], w[1]), T = (x, y) => w2s(view, W(), H(), x, y);
-    for (const a of areas) if (a.dims && a.category !== "site") for (const d of dimSpecs(a, T, SCREEN_K)) {
+    const runs = chainRuns(), on = d => {
       const r = d.ang * Math.PI / 180, dx = px - d.mx, dy = py - d.my;   // into the text's own (rotated) frame
-      if (Math.abs(dx * Math.cos(r) + dy * Math.sin(r)) < Math.max(10, d.txt.length * 3) && Math.abs(-dx * Math.sin(r) + dy * Math.cos(r)) < 6)
-        return { kind: "dim", id: a.id, wall: d.i };
-    }
+      return Math.abs(dx * Math.cos(r) + dy * Math.sin(r)) < Math.max(10, d.txt.length * 3) && Math.abs(-dx * Math.sin(r) + dy * Math.cos(r)) < 6;
+    };
+    // A chained dimension: clicking any of its figures removes the chain.
+    for (const r of runs) if (chainParts(r, T, SCREEN_K).texts.some(on)) return { kind: "dim", id: r.a.id, wall: r.i, chain: true };
+    for (const a of areas) if (a.dims && a.category !== "site") for (const d of dimSpecs(a, T, SCREEN_K))
+      if (!wallInRuns(a, d.i, runs) && on(d)) return { kind: "dim", id: a.id, wall: d.i };
   }
   for (const s of visSymbols().reverse()) if (symHit(s, w)) return { kind: "symbol", id: s.id };
   for (const d of visDimlines().reverse()) if (distToSeg(w, d.a, d.b) < 6 / view.zoom) return { kind: "dimline", id: d.id };
@@ -1433,7 +1463,8 @@ function fit() {
   const b = bbox(pts), bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);
   // Capped so a lone start point or a single short wall doesn't fill the screen.
   const cap = S.units === "m" ? 200 : 60;
-  view.zoom = Math.min((W() - 80) / bw, (H() - 80) / bh, cap);
+  const cm = chainRuns().length ? 100 : 0;   // chained dimensions stand outside the walls: leave them room
+  view.zoom = Math.min((W() - 80 - cm) / bw, (H() - 80 - cm) / bh, cap);
   view.cx = (b.x0 + b.x1) / 2; view.cy = (b.y0 + b.y1) / 2;
   // Callouts sit outside the plan, so leave room for them too: lay the labels
   // out, see how far past the plan they reach, shrink and shift to fit, repeat.
@@ -1450,7 +1481,7 @@ function fit() {
       y0 = Math.min(y0, L.y - L.h / 2 - 6); y1 = Math.max(y1, L.y + L.h / 2 + 6);
     }
     const ml = sx0 - x0, mr = x1 - sx1, mt = sy0 - y0, mb = y1 - sy1;
-    const z = Math.min((Wd - 40 - ml - mr) / bw, (Ht - 40 - mt - mb) / bh, cap);
+    const z = Math.min((Wd - 40 - cm - ml - mr) / bw, (Ht - 40 - cm - mt - mb) / bh, cap);
     if (!(z > 0)) break;
     view.zoom = z; view.cx = (b.x0 + b.x1) / 2 + (mr - ml) / 2 / z; view.cy = (b.y0 + b.y1) / 2 + (mt - mb) / 2 / z;
   }
@@ -1503,9 +1534,11 @@ function scene(v, Wd, Ht, o) {
   o.k = o.k || 1;
   // The screen's corner north arrow: callouts keep clear of it.
   if (o.live && !visSymbols().some(x => x.type === "north")) o.keepOut = [northBox(Wd - 26, 34, 0.95)];
+  o.runs = o.dims ? chainRuns() : [];
   for (const a of order) out.push(areaSvg(a, T, o, !o.noSel && isPicked("area", a.id)));
   // Openings after every area, so a neighbour's wall drawn later can't close the gap.
   for (const a of order) for (const op of a.openings || []) out.push(openingSvg(a, op, T, !o.noSel && isPicked("area", a.id), o.k));
+  for (const r of o.runs) out.push(chainSvg(r, T, o.k));
   for (const s of visSymbols()) out.push(symbolSvg(s, T, v.zoom, !o.noSel && isPicked("symbol", s.id), o.minText, o.k));
   for (const d of visDimlines()) out.push(dimlineSvg(d, T, o.k, !o.noSel && isPicked("dimline", d.id)));
   for (const { a, L } of layoutLabels(order, T, o)) out.push(labelSvg(L, o, isCalc(a) && !!storageOf(a)));
@@ -1544,6 +1577,97 @@ function dimSpecs(a, T, k = 1) {
       txt: r ? `${fmtLen(L)} · rise ${fmtLen(Math.abs(r))}` : fmtLen(L), short: fmtLen(L) });
   }
   return out;
+}
+// ---------------------------------------------------------------- chained dimensions
+// A chained dimension replaces the separate dimensions along one line of
+// walls: a dimension line outside the wall with a tick at every corner on it,
+// each span's length, and the overall length beyond. Shift+click a wall's
+// dimension to chain it (a.chainWalls holds the wall numbers). The run is
+// worked out again from the walls on every draw, so it follows edits and
+// takes in the walls of adjoining areas that lie on the same line.
+function chainRun(a, i) {
+  const p = a.points, n = p.length;
+  if (i < 0 || i >= (a.closed ? n : n - 1) || riseAt(a, i)) return null;
+  const A = p[i], B = p[(i + 1) % n], L = dist(A, B);
+  if (L < ON) return null;
+  const u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L], iv = [];
+  const off = v => Math.abs((v[0] - A[0]) * u[1] - (v[1] - A[1]) * u[0]), at = v => (v[0] - A[0]) * u[0] + (v[1] - A[1]) * u[1];
+  for (const m of S.areas) {
+    if (m !== a && (pageOf(m) !== pageOf(a) || (m.level || "") !== (a.level || "") || m.category === "site" || m.category === "line")) continue;
+    const q = m.points, k = q.length;
+    for (let j = 0; j < (m.closed ? k : k - 1); j++) {
+      const P = q[j], Q = q[(j + 1) % k];
+      if (riseAt(m, j) || off(P) > ON || off(Q) > ON) continue;
+      const t0 = Math.min(at(P), at(Q)), t1 = Math.max(at(P), at(Q));
+      if (t1 - t0 > ON) iv.push([t0, t1]);
+    }
+  }
+  // Grow from this wall through every wall that touches or overlaps the run so far.
+  let lo = 0, hi = L, grew = true;
+  const used = new Set();
+  while (grew) {
+    grew = false;
+    iv.forEach((v, x) => { if (!used.has(x) && v[1] >= lo - ON && v[0] <= hi + ON) { used.add(x); lo = Math.min(lo, v[0]); hi = Math.max(hi, v[1]); grew = true; } });
+  }
+  const cuts = [...used].flatMap(x => iv[x]).concat(0, L).sort((x, y) => x - y).filter((v, x, l) => !x || v - l[x - 1] > ON);
+  // The dimension line goes outside the area the wall belongs to.
+  const out = a.closed && signedAreaOf(a) > 0 ? [u[1], -u[0]] : [-u[1], u[0]];
+  return { a, i, A, u, cuts, out };
+}
+// Every chain on the page being shown, one per run (two chained walls of the same run draw once).
+function chainRuns() {
+  const runs = [], seen = new Set(), r3 = x => Math.round(x * 1000) / 1000 + 0;
+  for (const a of visAreas()) if (a.dims) for (const i of a.chainWalls || []) {
+    const r = chainRun(a, i);
+    if (!r) continue;
+    const P = t => [r3(r.A[0] + r.u[0] * t), r3(r.A[1] + r.u[1] * t)].join(",");
+    const key = [P(r.cuts[0]), P(r.cuts[r.cuts.length - 1])].sort().join("|") + "|" + r.out.map(r3).join(",");
+    if (!seen.has(key)) { seen.add(key); runs.push(r); }
+  }
+  return runs;
+}
+// Is wall i of area a part of a chained run (so its own dimension is left off)?
+function wallInRuns(a, i, runs) {
+  if (!runs.length || riseAt(a, i)) return false;
+  const p = a.points, P = p[i], Q = p[(i + 1) % p.length];
+  return runs.some(r => {
+    const off = v => Math.abs((v[0] - r.A[0]) * r.u[1] - (v[1] - r.A[1]) * r.u[0]), at = v => (v[0] - r.A[0]) * r.u[0] + (v[1] - r.A[1]) * r.u[1];
+    return off(P) <= ON && off(Q) <= ON && Math.min(at(P), at(Q)) >= r.cuts[0] - ON && Math.max(at(P), at(Q)) <= r.cuts[r.cuts.length - 1] + ON;
+  });
+}
+// A run's lines and texts in screen space: the spans on the first line, the
+// overall length on a second line when there is more than one span.
+function chainParts(r, T, k = 1) {
+  const W2 = t => T(r.A[0] + r.u[0] * t, r.A[1] + r.u[1] * t), n = r.cuts.length;
+  const s0 = W2(r.cuts[0]), s1 = W2(r.cuts[n - 1]), sl = Math.hypot(s1[0] - s0[0], s1[1] - s0[1]) || 1;
+  const tx = (s1[0] - s0[0]) / sl, ty = (s1[1] - s0[1]) / sl;
+  const o0 = T(r.A[0], r.A[1]), o1 = T(r.A[0] + r.out[0], r.A[1] + r.out[1]), ol = Math.hypot(o1[0] - o0[0], o1[1] - o0[1]) || 1;
+  const nx = (o1[0] - o0[0]) / ol, ny = (o1[1] - o0[1]) / ol;
+  let ang = Math.atan2(ty, tx) * 180 / Math.PI;
+  if (ang > 90) ang -= 180; else if (ang <= -90) ang += 180;
+  const tiers = [{ off: 16 * k, cuts: r.cuts }];
+  if (n > 2) tiers.push({ off: 36 * k, cuts: [r.cuts[0], r.cuts[n - 1]] });
+  const texts = [], f = v => v.toFixed(1), tk = 3.5 * k;
+  let path = "";
+  for (const tier of tiers) {
+    const pts = tier.cuts.map(t => { const s = W2(t); return [s[0] + nx * tier.off, s[1] + ny * tier.off]; });
+    path += `M${f(pts[0][0])} ${f(pts[0][1])}L${f(pts[pts.length - 1][0])} ${f(pts[pts.length - 1][1])}`;
+    for (const [x, y] of pts) path += `M${f(x - (tx + nx) * tk)} ${f(y - (ty + ny) * tk)}L${f(x + (tx + nx) * tk)} ${f(y + (ty + ny) * tk)}`;
+    for (let j = 0; j + 1 < pts.length; j++) texts.push({ mx: (pts[j][0] + pts[j + 1][0]) / 2 + nx * 8 * k, my: (pts[j][1] + pts[j + 1][1]) / 2 + ny * 8 * k,
+      ang, txt: fmtLen(tier.cuts[j + 1] - tier.cuts[j]) });
+  }
+  // Extension lines from the wall out to the line they mark: the two ends reach the overall line.
+  r.cuts.forEach((t, j) => {
+    const s = W2(t), reach = (n > 2 && (j === 0 || j === n - 1) ? 36 : 16) * k + 4 * k;
+    path += `M${f(s[0] + nx * 3 * k)} ${f(s[1] + ny * 3 * k)}L${f(s[0] + nx * reach)} ${f(s[1] + ny * reach)}`;
+  });
+  return { path, texts };
+}
+function chainSvg(r, T, k = 1) {
+  const c = chainParts(r, T, k);
+  return `<path d="${c.path}" stroke="#374151" stroke-width="${0.8 * k}" fill="none"/>` + c.texts.map(t =>
+    `<text x="${t.mx.toFixed(1)}" y="${t.my.toFixed(1)}" font-size="${11 * k}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, Helvetica, sans-serif" ` +
+    `fill="#374151" stroke="#fff" stroke-width="${3 * k}" stroke-linejoin="round" paint-order="stroke" transform="rotate(${t.ang.toFixed(2)} ${t.mx.toFixed(1)} ${t.my.toFixed(1)})">${esc(t.txt)}</text>`).join("");
 }
 // Combined areas are drawn as one shape: where a member's wall lies along a
 // wall of another member of the same combination, that stretch is an inside
@@ -1606,6 +1730,7 @@ function areaSvg(a, T, o, isSel) {
     for (const s of dimSpecs(a, T, o.k)) {
       if (inner && inner[s.i].reduce((t, [t0, t1]) => t + t1 - t0, 0) > 0.99) continue;
       if (s.hidden && !o.live) continue;
+      if (wallInRuns(a, s.i, o.runs)) continue;   // a chained dimension shows this wall instead
       // On a page export a dimension longer than its wall is shortened (a curve
       // drops its rise), and if it still runs well past both corners it is left
       // out and counted, so the export can say so.
@@ -2038,6 +2163,21 @@ function symCorners(s) {
 // A free dimension between two points: d = { a, b, text, flip, page, level }.
 // Drawn with end ticks and the length (after an optional label) at the
 // minimum text size, so setbacks and spacing read like the wall dimensions.
+// The Tape tool's running measure: each leg, the total and, once closed, the area.
+function tapeInfo() {
+  const p = tape.pts, legs = [];
+  for (let i = 1; i < p.length; i++) legs.push(dist(p[i - 1], p[i]));
+  if (tape.closed) legs.push(dist(p[p.length - 1], p[0]));
+  return { legs, total: legs.reduce((t, v) => t + v, 0), area: tape.closed ? Math.abs(signedArea(p)) : 0 };
+}
+function tapeText() {
+  const t = tapeInfo();
+  if (!t.legs.length) return "";
+  const sum = t.legs.length > 1 ? t.legs.map(fmtLen).join(" + ") + " = " : "";
+  return `Measured ${sum}${fmtLen(t.total)}` + (tape.closed ? ` around, area ${fmtArea(t.area)}` : "");
+}
+const TAPE_DONE = ". Ctrl+C copies it; click to start another.";
+const TAPE_NEXT = ". Click the next point: Enter or a double-click ends, clicking the start closes it for an area, Backspace takes a point back.";
 function dimlineSvg(d, T, k = 1, isSel = false) {
   const [ax, ay] = T(...d.a), [bx, by] = T(...d.b), L = dist(d.a, d.b), sl = Math.hypot(bx - ax, by - ay) || 1;
   const tx = (bx - ax) / sl, ty = (by - ay) / sl, side = d.flip ? 1 : -1, nx = -ty * side, ny = tx * side;
@@ -2114,7 +2254,20 @@ function liveSvg(T) {
       out.push(`<text x="${(ax + bx) / 2}" y="${(ay + by) / 2 - 6}" font-size="12" font-weight="bold" text-anchor="middle" fill="#2563eb" font-family="Arial">${esc(fmtLen(L))}</text>`);
     }
   }
-  if (hover && (tool === "draw" || tool === "calib" || tool === "measure")) {
+  if (tape && tool === "tape" && tape.pts.length) {
+    const p = tape.pts.slice(), ink = "#c2410c";
+    if (!tape.done && hover) p.push(hover.pt);
+    const sp = p.map(q => T(q[0], q[1])), txt = (x, y, t, bold) => `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="12"${bold ? ' font-weight="bold"' : ""} text-anchor="middle" ` +
+      `dominant-baseline="middle" font-family="Arial" fill="${ink}" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${esc(t)}</text>`;
+    out.push(`<path d="M${sp.map(q => q[0].toFixed(1) + " " + q[1].toFixed(1)).join("L")}${tape.closed ? "Z" : ""}" fill="${tape.closed ? "rgba(234,88,12,.12)" : "none"}" stroke="${ink}" stroke-width="1.5" stroke-dasharray="6 3"/>`);
+    for (let i = 0; i < p.length; i++) {
+      out.push(`<circle cx="${sp[i][0].toFixed(1)}" cy="${sp[i][1].toFixed(1)}" r="3" fill="${ink}"/>`);
+      const j = i + 1 < p.length ? i + 1 : tape.closed ? 0 : -1;
+      if (j >= 0 && dist(p[i], p[j]) > EPS) out.push(txt((sp[i][0] + sp[j][0]) / 2, (sp[i][1] + sp[j][1]) / 2 - 8, fmtLen(dist(p[i], p[j]))));
+    }
+    if (tape.closed) { const c = T(...centroid(p)); out.push(txt(c[0], c[1], fmtArea(tapeInfo().area), true)); }
+  }
+  if (hover && (tool === "draw" || tool === "calib" || tool === "measure" || tool === "tape")) {
     const [hx, hy] = T(hover.pt[0], hover.pt[1]);
     out.push(hover.vertex
       ? `<rect x="${hx - 5}" y="${hy - 5}" width="10" height="10" fill="none" stroke="#dc2626" stroke-width="1.5"/>`
@@ -2506,7 +2659,7 @@ function exportSvg() {
   exportNotes = [];
   const bottom = $("exBottom").value, withTable = bottom === "table", sc = exportScale(), m = minTextPt(), k = m / 10;
   const [pw, ph] = paperInches(), W = pw * PT, Hpage = ph * PT;
-  const pad = 1.2 * m, drawPad = 3 * m;
+  const pad = 1.2 * m, drawPad = (chainRuns().length ? 5.5 : 3) * m;   // a chained dimension stands outside its wall
   const b = bbox(pts), bw = Math.max(b.x1 - b.x0, 1e-3), bh = Math.max(b.y1 - b.y0, 1e-3);
   const t = totals(), rows = [];
   if (withTable) {
@@ -2903,9 +3056,9 @@ function status(msg, cls) { const s = $("status"); s.textContent = msg || ""; s.
 // ---------------------------------------------------------------- tools
 function setTool(t) {
   tool = t; calib = null;
-  measureStart = null;
+  measureStart = null; tape = null;
   for (const [id, k] of [["tDraw", "draw"], ["tSelect", "select"], ["tLabel", "label"], ["tOpening", "opening"], ["tSymbol", "symbol"],
-    ["tMeasure", "measure"], ["tPhoto", "photo"],
+    ["tMeasure", "measure"], ["tTape", "tape"], ["tPhoto", "photo"],
     ["tCalib", "calib"], ["tMoveU", "moveU"]])
     $(id).classList.toggle("on", k === t);
   for (const b of document.querySelectorAll("#symGrid button")) b.classList.toggle("on", t === "symbol" && b.dataset.sym === curSym);
@@ -3038,6 +3191,15 @@ document.addEventListener("keydown", e => {
   if (e.key === "F1") { e.preventDefault(); return showHelp($("help").hidden); }
   const inField = e.target !== cmd && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (inField) return;
+  // Tape: Enter ends the run, Backspace takes the last point back.
+  if (tool === "tape" && tape && !tape.done && !cmd.value && !e.ctrlKey && !e.metaKey) {
+    if (e.key === "Enter" && tape.pts.length > 1) { e.preventDefault(); tape.done = true; status(tapeText() + TAPE_DONE, "ok"); return render(); }
+    if (e.key === "Backspace") {
+      e.preventDefault(); tape.pts.pop();
+      if (!tape.pts.length) tape = null;
+      status(tape ? (tapeText() || "Tape: first point set") + TAPE_NEXT : "Tape: click the first point."); return render();
+    }
+  }
   // R turns the selection 15° clockwise (Shift+R counter-clockwise; hold Ctrl
   // for 5°, which also keeps Ctrl+R from reloading the page). With Draw on, only
   // a label or symbol: R there starts a wall, and a new area is selected.
@@ -3065,6 +3227,7 @@ document.addEventListener("keydown", e => {
     if (!$("lib").hidden) { $("lib").hidden = true; return; }
     if (!$("recover").hidden) { $("recover").hidden = true; return; }
     if (activeVertex) { activeVertex = null; status(""); return render(); }
+    if (tape) { tape = null; status("Measurement cleared."); return render(); }
     if (draw) { draw = null; status("Area cancelled."); }
     else { setSel(null); calib = null; }
     cmd.value = ""; ghost = []; renderPanel(); return render();
@@ -3072,6 +3235,11 @@ document.addEventListener("keydown", e => {
   if (e.target === cmd && cmd.value) return;
   const mod = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
   if (mod && e.shiftKey && key === "c") { e.preventDefault(); return copyPageImage(); }
+  if (mod && key === "c" && tool === "tape" && tape && tape.pts.length > 1) {
+    e.preventDefault();
+    navigator.clipboard.writeText(tapeText()).then(() => status("Measurement copied: paste it with Ctrl+V.", "ok"), err => status("Couldn't copy: " + err.message, "bad"));
+    return;
+  }
   if (mod && key === "c") { if (copySel()) e.preventDefault(); return; }
   if (mod && key === "v") { e.preventDefault(); return pasteClip(); }
   if (mod && key === "a") { e.preventDefault(); return selectAllShown(); }
@@ -3148,6 +3316,7 @@ function insertCorner(a, i, q) {
   a.points.splice(i + 1, 0, q);
   if (a.rise) a.rise.splice(i + 1, 0, 0);
   a.hideDims = (a.hideDims || []).flatMap(h => h < i ? [h] : h === i ? [i, i + 1] : [h + 1]);
+  a.chainWalls = (a.chainWalls || []).flatMap(h => h < i ? [h] : h === i ? [i, i + 1] : [h + 1]);
   for (const o of a.openings || []) {
     if (o.wall > i) o.wall++;
     else if (o.wall === i && o.at > L1) { o.wall = i + 1; o.at = round4(o.at - L1); }
@@ -3162,6 +3331,7 @@ function removeCorner(a, i) {
   const gone = (a.openings || []).filter(o => o.wall === prev || o.wall === i).length;
   a.openings = (a.openings || []).filter(o => o.wall !== prev && o.wall !== i).map(o => Object.assign(o, { wall: newIdx(o.wall) }));
   a.hideDims = (a.hideDims || []).filter(h => h !== prev && h !== i).map(newIdx);
+  a.chainWalls = (a.chainWalls || []).filter(h => h !== prev && h !== i).map(newIdx);
   a.points.splice(i, 1);
   if (a.rise) { a.rise.splice(i, 1); a.rise[merged] = 0; }
   return { gone };
@@ -3234,6 +3404,19 @@ svg.addEventListener("mousedown", e => {
       renderPanel(); return render();
     }
     const h = hitTest(w);
+    if (h && h.kind === "dim" && (h.chain || e.shiftKey)) {
+      // Shift+click a wall's dimension chains it; a click on a chain removes it.
+      const a = S.areas.find(x => x.id === h.id);
+      if (!a) return;
+      if (!h.chain && !chainRun(a, h.wall)) return status("A curved wall can't carry a chained dimension.", "bad");
+      pushHistory();
+      const cw = new Set(a.chainWalls || []);
+      h.chain ? cw.delete(h.wall) : cw.add(h.wall);
+      a.chainWalls = [...cw].sort((x, y) => x - y);
+      setSel({ kind: "area", id: a.id }); commit();
+      return status(h.chain ? "Chained dimension removed: the walls show their own dimensions again."
+        : "Chained dimension added: each span along this line of walls and the overall length. It follows the walls as they change; click it to remove it.", "ok");
+    }
     if (h && h.kind === "dim") {
       // One click hides a dimension (or shows it again); a double-click edits it
       // instead, so the click waits a moment to see which it is.
@@ -3247,7 +3430,7 @@ svg.addEventListener("mousedown", e => {
         hd.has(h.wall) ? hd.delete(h.wall) : hd.add(h.wall);
         a.hideDims = [...hd].sort((x, y) => x - y);
         setSel({ kind: "area", id: a.id }); commit();
-        status(hd.has(h.wall) ? "Dimension hidden (click it again to show it; double-click to change the length)." : "Dimension shown.", "ok");
+        status(hd.has(h.wall) ? "Dimension hidden (click it again to show it; double-click to change the length; Shift+click chains it along the wall)." : "Dimension shown.", "ok");
       }, 280);
       return;
     }
@@ -3286,6 +3469,16 @@ svg.addEventListener("mousedown", e => {
     S.dimlines.push(d); measureStart = null;
     setSel({ kind: "dimline", id: d.id }); commit();
     status(`Dimension ${fmtLen(dist(d.a, d.b))}. Give it a label (e.g. Setback) under Selected, or click for another.`, "ok");
+  } else if (tool === "tape") {
+    let q = snapPoint(w).pt;
+    if (!tape || tape.done) tape = { pts: [], closed: false, done: false };
+    const p = tape.pts, last = p[p.length - 1], same = c => dist(q, c) < EPS || dist(w, c) < 5 / view.zoom;
+    if (last && e.shiftKey) q = Math.abs(q[0] - last[0]) > Math.abs(q[1] - last[1]) ? [q[0], last[1]] : [last[0], q[1]];
+    if (p.length >= 3 && same(p[0])) tape.closed = tape.done = true;
+    else if (last && same(last)) { if (p.length > 1) tape.done = true; }
+    else p.push(q);
+    status(tape.done ? tapeText() + TAPE_DONE : (tapeText() || "Tape: first point set") + TAPE_NEXT, tape.done ? "ok" : "");
+    return render();
   } else if (tool === "photo") {
     pushHistory();
     const q = snapPoint(w).pt, s = { id: S.nextId++, type: "photo", num: nextPhotoNum(), x: q[0], y: q[1], rot: 0, size: 1, level: viewLevel || undefined, page: curPage };
@@ -3333,7 +3526,7 @@ window.addEventListener("mousemove", e => {
     $("coords").textContent = `${fmtNum(w[0], 2)}, ${fmtNum(w[1], 2)} ${S.units}`;
     hover = snapPoint(w);
   }
-  if (!drag) { if (tool === "draw" || tool === "calib" || tool === "measure") render(); return; }
+  if (!drag) { if (tool === "draw" || tool === "calib" || tool === "measure" || tool === "tape") render(); return; }
   if (drag.kind === "pan") {
     view.cx = drag.cx - (sx - drag.sx) / view.zoom; view.cy = drag.cy + (sy - drag.sy) / view.zoom;
   } else if (drag.kind === "underlay") {
@@ -3406,6 +3599,7 @@ svg.addEventListener("dblclick", e => {
     pushHistory(); l.text = t.trim(); rememberLabel(l.text); setSel({ kind: "label", id: l.id }); commit();
     return status("Label changed.", "ok");
   }
+  if (h && h.kind === "dim" && h.chain) return;
   if (h && h.kind === "dim") {
     const a = S.areas.find(x => x.id === h.id), n = a.points.length, L = dist(a.points[h.wall], a.points[(h.wall + 1) % n]);
     const txt = prompt(`New length for this wall (now ${fmtLen(L)}). The corners beyond it move with it:`, fmtLen(L).replace(/'$/, ""));
@@ -3518,7 +3712,7 @@ $("sApply").addEventListener("click", () => {
   pushHistory();
   // Hidden dimensions follow their wall while the wall count is unchanged;
   // doors and windows stay on their wall number while that wall still exists.
-  if (pts.length !== a.points.length || closed !== a.closed) a.hideDims = [];
+  if (pts.length !== a.points.length || closed !== a.closed) a.hideDims = a.chainWalls = [];
   if (a.openings) a.openings = a.openings.filter(o => o.wall < (closed ? pts.length : pts.length - 1));
   a.points = pts; a.closed = closed; a.rise = Array.from(rise, v => (v || 0) * sg);
   $("sVec").blur(); commit();
@@ -3611,6 +3805,7 @@ $("tLabel").onclick = () => setTool("label");
 $("tOpening").onclick = () => { $("dwsBox").open = true; setTool("opening"); };
 $("tSymbol").onclick = () => { $("dwsBox").open = true; setTool("symbol"); };
 $("tMeasure").onclick = () => { setTool("measure"); status("Measure: click one end, then the other (snaps to corners; Shift keeps it square)."); };
+$("tTape").onclick = () => { setTool("tape"); status("Tape: click a run of points (snaps to corners; Shift keeps a leg square). Enter or a double-click ends it; clicking the start closes it and reads the area."); };
 $("tPhoto").onclick = () => { setTool("photo"); status(`Photo: click where photo ${nextPhotoNum()} was taken and drag the way it faces.`); };
 $("tCalib").onclick = () => setTool("calib");
 $("tMoveU").onclick = () => setTool("moveU");
@@ -3634,7 +3829,7 @@ function resetSettings() {
     ["exPaper", "letter"], ["exOrient", "portrait"], ["exScale", ""], ["exMinPt", "12"], ["exDpi", "300"], ["exBottom", "totals"],
     ["uOpacity", "40"], ["uRot", "0"]]) set(id, v);
   $("oWidth").value = openingDefault("door"); $("oHeight").value = openingHeightDefault("door");
-  underlay = null; curSym = "stairs"; $("dwsBox").open = false; calcOpen.clear(); activeVertex = null; measureStart = null;
+  underlay = null; curSym = "stairs"; $("dwsBox").open = false; calcOpen.clear(); activeVertex = null; measureStart = null; tape = null;
   cmd.value = ""; ghost = []; ghostWalls = [];
 }
 $("bNew").onclick = () => {

@@ -1,6 +1,6 @@
 # JKS Sketch
 
-Status: Active | Next: try the area breakdown on a real job sketch | Blocked: none | Updated: 2026-11-27
+Status: Active | Next: try the area breakdown, chained dimensions, room shapes and Tape on a real job sketch | Blocked: none | Updated: 2026-11-27
 
 Re-enters a hand-drawn field sketch as a clean, dimensioned plan with computed
 areas. One self-contained file, `sketch.html`: open it in Edge or Chrome
@@ -17,14 +17,14 @@ Licence: MIT (see `LICENSE`).
 
 One row on a laptop screen. Always visible: *File* menu (New, Open, Recover)
 and *Save*; the tools (Draw, Select, Label, Door/Window, Symbol, Measure,
-Photo); Undo, Redo, the *Edit* menu (select all, copy, paste, delete, rotate),
+Tape, Photo); Undo, Redo, the *Edit* menu (select all, copy, paste, delete, rotate),
 *Fit* and *auto*; the page and level being shown; *View* (units, dimension
 format and decimals, what area labels show, the area library); *Underlay*
 (load, calibrate, move, opacity, rotation, remove); *Export* (SVG, PNG, JPG,
 areas.json, and page setup: paper, orientation, scale, smallest text, image
 dpi, area table); *Print*; Help.
 
-**Version.** The version (now 1.1, 2026-11-27) shows next to the name, in
+**Version.** The version (now 1.2, 2026-11-27) shows next to the name, in
 Help, at the foot of every exported page, in saved sketches (`saved_with`)
 and in `areas.json` (`generator`), so a shared copy can be told apart. It's
 `APP_VERSION` near the top of the script; bump it with each release.
@@ -81,6 +81,7 @@ Up is north on the page. Several commands can go on one line: `R40 D28 L40 C`.
 | `17>45` `17<30` `17>` | turn: 17 long, turning right (`>`) or left (`<`) 45° off the line of the previous wall; no angle = 90° |
 | `20@135` | length 20 at 135° (0° = right, counter-clockwise) |
 | `N45-30E120.5` | survey bearing N 45°30′ E, 120.5 long. Use it for lot lines |
+| `40x28` `40x28c10x8` | a whole room at once, from its lower-left corner: a rectangle 40 across and 28 up, closed. `c10x8` cuts a 10 × 8 corner out of it for an L: the top right, or add `ne` `nw` `se` `sw` (`40x28c10x8sw`) |
 | `mR10` | move the start point 10 right without drawing (an addition that starts partway along a wall) |
 | `U=` `L=` | run up (left…) until level with the start, so the close comes out square (one dimension missing from the field sketch) |
 | `U*` `R*` | run up (right…) until meeting an existing wall, or one of this area's own |
@@ -149,6 +150,14 @@ keep the drag. *Fit* leaves room for every callout.
 walls (for every selected area). With
 *Select*, clicking a dimension hides it from the plan; on screen it stays faint
 and struck through so it can be clicked back.
+
+**Chained dimensions.** With *Select*, Shift+click a wall's dimension: that
+line of walls gets one dimension line outside it, with a tick at every corner,
+each span's length, and the overall length on a second line. The run takes in
+the walls of adjoining areas on the same line (same page and level), and is
+worked out again whenever a wall changes, so it follows edits. The walls'
+own dimensions along the run are left off. Click a chained dimension to remove
+it. It prints and exports like any dimension; curved walls can't be chained.
 
 **Rotate and copy.** `[` and `]` turn the selection 15° counter-clockwise /
 clockwise; with Shift, 5°. The same steps are buttons at the top of *Selected*,
@@ -313,6 +322,14 @@ clicked points (snapping to corners; Shift keeps it square) for setbacks,
 spacing between buildings or apron depth. Label it (e.g. *Setback*) under
 *Selected*; *Flip text* puts the text on the other side. Listed in
 `areas.json` as `measurements`.
+
+**Tape.** The *Tape* tool checks distances without drawing anything: click a
+run of points and it shows each leg and the running total (corners snap, Shift
+keeps a leg square, Backspace takes a point back). Enter or a double-click
+ends the run; clicking the start again closes it and reads the area and the
+distance around. Ctrl+C copies the result as text
+(`Measured 40' + 28' + 40' + 28' = 136' around, area 1,120 sf`); Esc clears
+it. A tape run is never saved, printed or exported.
 
 **Photo markers.** The *Photo* tool: click where a photo was taken and drag
 the way the camera faced. Markers number themselves 1, 2, 3… (change a number
